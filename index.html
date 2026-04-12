@@ -2,259 +2,372 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shadow & Light Explorer</title>
-  <script src="vendor/tailwindcss-3.4.17.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Shadow Lab NHPS Edition V1</title>
   
-  <!-- Three.js and Controls -->
-  <script src="vendor/three.min_1.js"></script>
-  <script src="vendor/OrbitControls_2.js"></script>
-  <script src="vendor/DragControls_3.js"></script>
+  <!-- Three.js and Controls (Standard safe CDNs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DragControls.js"></script>
 
   <style>
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    .animate-fade-in {
-      animation: fadeIn 0.5s ease-out;
-    }
-    /* Hide scrollbar */
-    body {
-      -ms-overflow-style: none;
-      scrollbar-width: none;
-    }
-    body::-webkit-scrollbar {
-      display: none;
-    }
-    
-    /* Range Slider Styling */
-    input[type=range] {
-      accent-color: #4f46e5;
+    /* =======================================================================
+       PURE CSS LAYOUT (SLS-PROOF)
+       ======================================================================= */
+    :root {
+      --primary: #4f46e5; --primary-hover: #4338ca;
+      --danger: #dc2626; --danger-hover: #b91c1c;
+      --success: #22c55e; --success-hover: #16a34a;
+      --bg-color: #f8fafc; --surface: #ffffff;
+      --text-main: #1e293b; --text-muted: #64748b;
+      --border: #e2e8f0;
+      --shadow-color: #0f172a;
     }
 
-    #three-canvas-container {
-      cursor: grab;
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden; 
+      overscroll-behavior: none; 
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
     }
-    #three-canvas-container:active {
-      cursor: grabbing;
+
+    .hidden { display: none !important; }
+
+    h1 { font-size: 3rem; font-weight: 800; margin-bottom: 1rem; color: #0f172a; line-height: 1.1; }
+    h2 { font-size: 1.25rem; font-weight: bold; }
+    p { line-height: 1.5; }
+
+    .btn {
+      padding: 14px 24px; border-radius: 12px; font-weight: bold; font-size: 1.1rem;
+      border: none; cursor: pointer; transition: transform 0.1s, background-color 0.2s;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      user-select: none; text-decoration: none;
     }
+    .btn:active:not(:disabled) { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3); }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+    .btn-danger { background: var(--danger); color: white; box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.3); }
+    .btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+    .btn-success { background: var(--success); color: white; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.3); }
+    .btn-success:hover:not(:disabled) { background: var(--success-hover); }
+    .btn-outline { background: var(--surface); border: 2px solid var(--border); color: var(--text-main); }
+    .btn-outline:hover:not(:disabled) { border-color: #cbd5e1; background: #f1f5f9; }
+    
+    .screen { width: 100%; height: 100%; display: flex; flex-direction: column; overflow-y: auto; }
+    .center-all { justify-content: center; align-items: center; text-align: center; padding: 20px; }
+    
+    /* --- Start Screen --- */
+    .hero-emojis { position: relative; display: flex; justify-content: center; margin-bottom: 2rem; font-size: 6rem; }
+    .hero-shadow { filter: brightness(0); opacity: 0.2; transform: scale(1.1) translate(-10px, 10px); position: absolute; z-index: -1; }
+    .action-buttons { display: flex; gap: 16px; margin-top: 2rem; width: 100%; max-width: 600px; }
+    
+    /* --- Lab Screen --- */
+    .lab-header { background: var(--primary); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 20; }
+    .lab-header-btn { background: rgba(0,0,0,0.2); color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 8px; transition: 0.2s;}
+    .lab-header-btn:hover { background: rgba(0,0,0,0.3); }
+    
+    .lab-body { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
+    .canvas-container { flex: 1; background: #0f172a; position: relative; touch-action: none; min-height: 40vh; }
+    
+    .sidebar { width: 340px; background: var(--surface); border-left: 1px solid var(--border); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; flex-shrink: 0; }
+    
+    .instructions-overlay { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; z-index: 10; }
+    .instruction-box { background: rgba(0,0,0,0.6); color: white; padding: 8px 12px; border-radius: 8px; backdrop-filter: blur(4px); font-size: 0.8rem; line-height: 1.4; pointer-events: auto; }
+    .instruction-box span.highlight { color: #818cf8; font-weight: bold; }
+    
+    /* Controls */
+    .control-group h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+    .slider-row { margin-bottom: 16px; }
+    .slider-header { display: flex; justify-content: space-between; font-size: 0.85rem; font-weight: bold; margin-bottom: 4px; }
+    .slider-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); font-weight: bold; margin-top: 4px; }
+    input[type=range] { width: 100%; margin: 6px 0; accent-color: var(--primary); cursor: pointer;}
+    
+    .shape-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+    .shape-btn { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 0; display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: 0.1s; }
+    .shape-btn:active { transform: scale(0.95); }
+    .shape-icon { width: 24px; height: 24px; margin-bottom: 8px; display: flex; justify-content: center; align-items: center;}
+    
+    .shape-square { background: #3b82f6; }
+    .shape-circle { background: #ef4444; border-radius: 50%; }
+    .shape-triangle { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid #eab308; background: transparent; }
+    .frame-square { border: 4px solid #60a5fa; background: transparent; }
+    .frame-circle { border: 4px solid #f87171; border-radius: 50%; background: transparent; }
+    .frame-triangle { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 24px solid #facc15; background: transparent; position: relative; }
+    .frame-triangle::after { content: ''; position: absolute; top: 7px; left: -6px; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid var(--surface); }
+
+    .shape-btn span { font-size: 0.65rem; font-weight: bold; color: var(--text-muted); text-align: center; margin-top: 4px; }
+
+    .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .view-btn { padding: 8px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; border: 1px solid transparent; cursor: pointer; text-align: center; }
+    .view-btn.front { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
+    .view-btn.side { background: #d1fae5; color: #047857; border-color: #a7f3d0; }
+
+    /* --- Puzzle Challenge UI --- */
+    .target-shadow-box { background: #e2e8f0; border-radius: 12px; height: 160px; display: flex; justify-content: center; align-items: center; margin-bottom: 16px; border: 2px dashed #94a3b8; position: relative; overflow: hidden;}
+    .target-shadow-label { position: absolute; top: 8px; left: 8px; font-size: 0.7rem; font-weight: bold; color: #64748b; text-transform: uppercase;}
+    .challenge-text { font-size: 0.9rem; font-weight: 500; color: var(--text-main); margin-bottom: 20px; line-height: 1.4; background: #f1f5f9; padding: 12px; border-radius: 8px; border-left: 4px solid var(--primary);}
+    
+    .popup-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 50; text-align: center; padding: 20px; opacity: 0; pointer-events: none; transition: 0.3s; }
+    .popup-overlay.show { opacity: 1; pointer-events: auto; }
+    .popup-card { background: white; padding: 30px; border-radius: 20px; max-width: 400px; transform: scale(0.9); transition: 0.3s; }
+    .popup-overlay.show .popup-card { transform: scale(1); }
+
+    /* --- Game Screen (P4 Shadow Quiz) --- */
+    .game-wrapper { max-width: 650px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+    .stats-bar { display: flex; justify-content: space-between; align-items: center; background: var(--surface); padding: 16px; border-radius: 16px; border: 1px solid var(--border); font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .timer { background: #fff7ed; color: #ea580c; padding: 6px 12px; border-radius: 8px; display: flex; gap: 8px; }
+    .timer.urgent { background: #fef2f2; color: #dc2626; animation: pulse 1s infinite; }
+    
+    .quiz-stage { background: var(--surface); border: 4px solid var(--border); border-radius: 24px; padding: 40px 20px; display: flex; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); min-height: 180px; }
+    .quiz-question { font-size: 1.3rem; font-weight: 800; color: var(--text-main); line-height: 1.4; transition: all 0.5s ease; }
+
+    .feedback-overlay { position: absolute; inset: 0; background: rgba(255,255,255,0.9); backdrop-filter: blur(4px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 20; text-align: center; padding: 20px; }
+    .feedback-overlay h3 { font-size: 2.5rem; font-weight: 900; margin: 10px 0; }
+    .feedback-overlay.correct h3 { color: var(--success); }
+    .feedback-overlay.wrong h3 { color: var(--danger); }
+    
+    .options-list { display: flex; flex-direction: column; gap: 12px; }
+    .option-btn { width: 100%; padding: 16px 20px; font-size: 1.05rem; border: 2px solid var(--border); background: var(--surface); border-radius: 16px; cursor: pointer; transition: 0.2s; font-weight: bold; color: var(--text-main); text-align: left;}
+    .option-btn:hover:not(:disabled) { border-color: #94a3b8; background: #f1f5f9; }
+    .option-btn.correct { background: var(--success); color: white; border-color: #16a34a; transform: scale(1.02); z-index: 10; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3); }
+    .option-btn.wrong { background: var(--danger); color: white; border-color: #b91c1c; opacity: 0.9; }
+    .option-btn.fade { background: #f8fafc; color: #94a3b8; border-color: var(--border); opacity: 0.5; }
+
+    /* End Screens */
+    .end-box { background: var(--surface); padding: 40px; border-radius: 32px; border: 4px solid var(--border); max-width: 450px; width: 100%; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .score-box { background: var(--bg-color); border: 1px solid var(--border); padding: 16px; border-radius: 16px; font-size: 1.5rem; font-weight: bold; margin: 20px 0; }
+    .score-number { color: var(--primary); font-size: 2.5rem; font-weight: 900; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .lab-body { flex-direction: column; }
+      .sidebar { width: 100%; height: 45%; border-left: none; border-top: 1px solid var(--border); }
+      .canvas-container { height: 55%; }
+      .action-buttons { flex-direction: column; }
+      h1 { font-size: 2.2rem; }
+      .quiz-question { font-size: 1.1rem; }
+    }
+    
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
   </style>
 </head>
-<body class="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans selection:bg-indigo-100">
+<body>
 
   <!-- START SCREEN -->
-  <div id="start-screen" class="flex flex-col items-center justify-center text-center space-y-8 animate-fade-in px-4 w-full max-w-2xl">
-    <div class="relative">
-      <span class="text-8xl drop-shadow-md inline-block">🔦</span>
-      <span class="text-8xl filter brightness-0 drop-shadow-md inline-block -ml-8 opacity-50 transform scale-110">⬛</span>
+  <div id="start-screen" class="screen center-all hidden">
+    <div class="hero-emojis">
+      <span>🔦</span>
+      <span class="hero-shadow">⬛</span>
     </div>
-    <div>
-      <h1 class="text-4xl md:text-5xl font-extrabold text-gray-800 tracking-tight mb-4">
-        Light & Shadows
-      </h1>
-      <p class="text-lg text-gray-600 mx-auto font-medium mb-6">
-        Explore how light travels, is blocked by objects, and forms shadows in 3D! Perfect for Primary 4 Science.
-      </p>
-    </div>
+    <h1>Shadow Lab NHPS Edition V1</h1>
+    <p style="color: var(--text-muted); max-width: 500px; margin: 0 auto; font-size: 1.1rem; font-weight: 500;">
+      Explore how light travels, is blocked by objects, and forms shadows in 3D! Perfect for Primary 4 Science.
+    </p>
     
-    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full justify-center">
-      <button 
-        onclick="openLab()"
-        class="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xl transition transform hover:scale-105 active:scale-95 shadow-lg flex-1"
-      >
-        🔬 Enter 3D Shadow Lab
+    <div class="action-buttons">
+      <button onclick="openLab(false)" class="btn btn-outline" style="flex: 1;">
+        🔬 Free Play Lab
       </button>
-      <button 
-        onclick="startGame()"
-        class="px-8 py-4 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl text-xl transition transform hover:scale-105 active:scale-95 shadow-lg flex-1"
-      >
-        🎮 Play Guessing Game
+      <button onclick="openLab(true)" class="btn btn-primary" style="flex: 1;">
+        🧩 Play Shadow Puzzle
       </button>
     </div>
   </div>
 
   <!-- SCIENCE LAB SCREEN (3D) -->
-  <div id="lab-screen" class="hidden flex-col w-full max-w-5xl h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden animate-fade-in border border-gray-200">
-    
+  <div id="lab-screen" class="screen hidden">
     <!-- Header -->
-    <div class="bg-indigo-600 text-white p-4 flex justify-between items-center shadow-md z-20">
+    <div class="lab-header">
+      <h2 id="lab-title">🔬 Science Lab: 3D Light Properties</h2>
       <div>
-        <h2 class="text-xl font-bold flex items-center gap-2">
-          <span>🔬</span> Science Lab: 3D Light Properties
-        </h2>
+        <button id="toggle-mode-btn" onclick="toggleMode()" class="lab-header-btn" style="background-color: var(--success);">Play Puzzle</button>
+        <button onclick="switchScreen('start')" class="lab-header-btn">Home</button>
       </div>
-      <button onclick="switchScreen('start')" class="px-4 py-2 bg-indigo-800 hover:bg-indigo-900 rounded-lg font-bold text-sm transition shadow-inner">
-        Exit Lab
-      </button>
     </div>
 
     <!-- Main Content Area -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="lab-body">
       
-      <!-- 3D Canvas Container -->
-      <div id="three-canvas-container" class="flex-1 w-full h-full relative bg-gray-900">
-        <!-- Overlay Instructions -->
-        <div class="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-10">
-          <div class="bg-black/50 text-white px-4 py-2 rounded-xl backdrop-blur-sm pointer-events-auto shadow-lg">
-            <p class="font-bold text-sm mb-1 text-indigo-300">Camera Controls:</p>
-            <p class="text-xs">• <span class="font-bold">Left-Click & Drag background:</span> Rotate Camera</p>
-            <p class="text-xs">• <span class="font-bold">Scroll:</span> Zoom In/Out</p>
+      <!-- 3D Canvas -->
+      <div id="three-canvas-container" class="canvas-container">
+        <div class="instructions-overlay">
+          <div class="instruction-box">
+            <span class="highlight">Camera:</span> Drag background to rotate.
           </div>
-          <div class="bg-black/50 text-white px-4 py-2 rounded-xl backdrop-blur-sm pointer-events-auto shadow-lg text-right">
-            <p class="font-bold text-sm mb-1 text-green-300">Object Controls:</p>
-            <p class="text-xs">• <span class="font-bold">Click & Drag shape:</span> Move Object</p>
-            <p class="text-xs text-green-200 italic">(Use Side View to drag Forward/Backward!)</p>
+          <div class="instruction-box" style="text-align: right;">
+            <span class="highlight">Objects:</span> Drag shape to move freely.
+          </div>
+        </div>
+
+        <!-- Correct/Wrong Popup -->
+        <div id="feedback-popup" class="popup-overlay">
+          <div class="popup-card">
+            <div id="feedback-icon" style="font-size: 4rem; margin-bottom: 10px;">✅</div>
+            <h2 id="feedback-title" style="color: var(--success); margin-bottom: 10px; font-size: 2rem;">Correct!</h2>
+            <p id="feedback-desc" style="color: var(--text-muted); margin-bottom: 20px;">You matched the shadow perfectly!</p>
+            <button id="feedback-next-btn" onclick="nextPuzzle()" class="btn btn-success w-full">Next Puzzle ➡️</button>
+            <button id="feedback-retry-btn" onclick="closeFeedback()" class="btn btn-danger w-full hidden">Try Again</button>
           </div>
         </div>
       </div>
 
       <!-- Controls Sidebar -->
-      <div class="w-80 bg-slate-50 border-l border-gray-200 p-5 flex flex-col gap-5 z-20 overflow-y-auto shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)]">
+      <div class="sidebar">
         
-        <!-- Camera View -->
-        <div>
-          <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Camera View</h3>
-          <div class="grid grid-cols-2 gap-2">
-            <button onclick="setCameraView('front')" class="py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold rounded-lg text-sm transition shadow-sm border border-indigo-200">
-              Front View
-            </button>
-            <button onclick="setCameraView('side')" class="py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-bold rounded-lg text-sm transition shadow-sm border border-emerald-200 relative">
-              3rd Person
+        <!-- STANDARD LAB CONTROLS -->
+        <div id="standard-controls">
+          <div class="control-group">
+            <h3>Camera View</h3>
+            <div class="view-grid">
+              <button onclick="setCameraView('front')" class="view-btn front">Front View</button>
+              <button onclick="setCameraView('side')" class="view-btn side">3rd Person</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3>Light Controls</h3>
+            <div class="slider-row">
+              <div class="slider-header"><span>Torch Position</span></div>
+              <input type="range" id="torch-slider" min="1" max="150" value="1" oninput="updateTorchPosition('torch-slider')">
+              <div class="slider-labels"><span>Forward</span><span>Backward</span></div>
+            </div>
+            <div class="slider-row">
+              <div class="slider-header"><span>Light Intensity</span></div>
+              <input type="range" id="light-slider" min="0" max="200" value="100" oninput="updateLightIntensity()">
+              <div class="slider-labels"><span>Dim</span><span>Bright</span></div>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3>Shape Controls</h3>
+            <div class="shape-grid">
+              <button onclick="add3DObject('square')" class="shape-btn">
+                <div class="shape-icon shape-square"></div><span>Solid Sq</span>
+              </button>
+              <button onclick="add3DObject('circle')" class="shape-btn">
+                <div class="shape-icon shape-circle"></div><span>Solid Cir</span>
+              </button>
+              <button onclick="add3DObject('triangle')" class="shape-btn">
+                <div class="shape-icon shape-triangle"></div><span>Solid Tri</span>
+              </button>
+              <button onclick="add3DObject('frame-square')" class="shape-btn">
+                <div class="shape-icon frame-square"></div><span>Sq Frame</span>
+              </button>
+              <button onclick="add3DObject('frame-circle')" class="shape-btn">
+                <div class="shape-icon frame-circle"></div><span>Ring</span>
+              </button>
+              <button onclick="add3DObject('frame-triangle')" class="shape-btn">
+                <div class="shape-icon frame-triangle"></div><span>Tri Frame</span>
+              </button>
+            </div>
+            <div class="slider-row">
+              <div class="slider-header"><span>Size</span></div>
+              <input type="range" id="size-slider" min="0.5" max="3" step="0.1" value="1" oninput="updateShapeSize()">
+            </div>
+            <div class="slider-row">
+              <div class="slider-header"><span>Rotation</span></div>
+              <input type="range" id="rotation-slider" min="0" max="360" value="0" oninput="updateShapeRotation()">
+            </div>
+            <button onclick="clear3DObjects()" class="btn btn-outline" style="width: 100%; color: var(--danger); border-color: #fca5a5;">
+              Clear All Shapes
             </button>
           </div>
         </div>
 
-        <hr class="border-gray-200">
-
-        <!-- Light Controls -->
-        <div>
-          <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Light Controls</h3>
-          
-          <div class="mb-4">
-            <div class="flex justify-between items-end mb-1">
-              <span class="text-xs font-bold text-gray-600">Torch Position</span>
+        <!-- PUZZLE CHALLENGE CONTROLS -->
+        <div id="puzzle-controls" class="hidden">
+          <div class="control-group">
+            <h3 id="puzzle-level-title" style="color: var(--primary); font-size: 1rem;">Puzzle 1 / 5</h3>
+            
+            <div class="target-shadow-box" id="target-shadow-visual">
+              <span class="target-shadow-label">Target Shadow</span>
+              <!-- CSS target injected here -->
             </div>
-            <input type="range" id="torch-slider" min="20" max="150" value="70" class="w-full" oninput="updateTorchPosition()">
-            <div class="flex justify-between text-[10px] font-bold text-gray-400 mt-1">
-              <span>Forward</span>
-              <span>Backward</span>
-            </div>
-          </div>
 
-          <div>
-            <div class="flex justify-between items-end mb-1">
-              <span class="text-xs font-bold text-gray-600">Light Intensity</span>
+            <p id="puzzle-hint" class="challenge-text">Drag the shapes freely to match the target shadow!</p>
+            
+            <div class="view-grid mb-4">
+              <button onclick="setCameraView('front')" class="view-btn front">Check Front View</button>
+              <button onclick="setCameraView('side')" class="view-btn side">Move in 3rd Person</button>
             </div>
-            <input type="range" id="light-slider" min="0" max="200" value="100" class="w-full" oninput="updateLightIntensity()">
-            <div class="flex justify-between text-[10px] font-bold text-gray-400 mt-1">
-              <span>Dim</span>
-              <span>Bright</span>
+
+            <!-- Added Torch Slider to Puzzle Mode -->
+            <div class="slider-row" style="margin-top: 15px; margin-bottom: 20px; padding: 10px; background: #e0e7ff; border-radius: 8px;">
+              <div class="slider-header"><span style="color: #4338ca;">🔦 Move Torch Position</span></div>
+              <input type="range" id="puzzle-torch-slider" min="1" max="150" value="1" oninput="updateTorchPosition('puzzle-torch-slider')">
+              <div class="slider-labels"><span>Forward</span><span>Backward</span></div>
             </div>
-          </div>
-        </div>
 
-        <hr class="border-gray-200">
-
-        <!-- Object Controls -->
-        <div>
-          <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Shape Controls</h3>
-          
-          <div class="grid grid-cols-3 gap-2 mb-4">
-            <button onclick="add3DObject('square')" class="flex flex-col items-center justify-center p-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:bg-blue-50 transition active:scale-95 group">
-              <div class="w-6 h-6 bg-blue-500 mb-1"></div>
-              <span class="text-[10px] font-bold text-gray-600">Square</span>
+            <button onclick="checkPuzzle()" class="btn btn-primary" style="width: 100%; padding: 16px; font-size: 1.2rem;">
+              Check Shadow 🔍
             </button>
-            <button onclick="add3DObject('circle')" class="flex flex-col items-center justify-center p-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:bg-red-50 transition active:scale-95 group">
-              <div class="w-6 h-6 bg-red-500 rounded-full mb-1"></div>
-              <span class="text-[10px] font-bold text-gray-600">Circle</span>
-            </button>
-            <button onclick="add3DObject('triangle')" class="flex flex-col items-center justify-center p-2 bg-white rounded-xl shadow-sm border border-gray-200 hover:bg-yellow-50 transition active:scale-95 group">
-              <div class="w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-b-[18px] border-b-yellow-400 mb-1"></div>
-              <span class="text-[10px] font-bold text-gray-600">Triangle</span>
+            
+            <button onclick="loadPuzzle(currentPuzzleIndex)" class="btn btn-outline" style="width: 100%; margin-top: 10px;">
+              Reset Shapes
             </button>
           </div>
-
-          <div class="mb-4">
-            <div class="flex justify-between items-end mb-1">
-              <span class="text-xs font-bold text-gray-600">Size</span>
-            </div>
-            <input type="range" id="size-slider" min="0.5" max="3" step="0.1" value="1" class="w-full" oninput="updateShapeSize()">
-            <div class="flex justify-between text-[10px] font-bold text-gray-400 mt-1">
-              <span>Small</span>
-              <span>Large</span>
-            </div>
-          </div>
-
-          <div class="mb-4">
-            <div class="flex justify-between items-end mb-1">
-              <span class="text-xs font-bold text-gray-600">Rotation</span>
-            </div>
-            <input type="range" id="rotation-slider" min="0" max="360" value="0" class="w-full" oninput="updateShapeRotation()">
-          </div>
-
-          <div class="mb-4">
-            <div class="flex justify-between items-end mb-1">
-              <span class="text-xs font-bold text-gray-600">Opacity</span>
-              <span class="text-[10px] text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded">Material</span>
-            </div>
-            <input type="range" id="opacity-slider" min="0.1" max="1" step="0.05" value="1" class="w-full" oninput="updateShapeOpacity()">
-            <div class="flex justify-between text-[10px] font-bold text-gray-400 mt-1">
-              <span>Transparent</span>
-              <span>Opaque</span>
-            </div>
-          </div>
-
-          <button onclick="clear3DObjects()" class="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded-lg text-sm transition shadow-sm border border-red-200">
-            Clear All Shapes
-          </button>
         </div>
 
       </div>
     </div>
   </div>
 
-  <!-- GAME SCREEN (Original Extreme Mode) -->
-  <div id="game-screen" class="hidden flex-col items-center w-full max-w-lg mx-auto space-y-5 px-4 animate-fade-in">
-    <div class="flex justify-between w-full items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-      <div id="question-counter" class="text-gray-600 font-bold bg-gray-100 px-4 py-2 rounded-xl">1 / 10</div>
-      <div id="timer-container" class="flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-colors bg-orange-50 text-orange-500">
-        <span>⏱️</span><span id="timer-display">10s</span>
+  <!-- GAME SCREEN (P4 Shadow Quiz) -->
+  <div id="game-screen" class="screen hidden" style="align-items: center; padding-bottom: 40px; background-color: var(--bg-color);">
+    <div class="game-wrapper">
+      <div class="stats-bar">
+        <div id="question-counter" style="color: var(--text-muted);">1 / 10</div>
+        <div id="timer-container" class="timer">
+          <span>⏱️</span><span id="timer-display">20s</span>
+        </div>
+        <div id="score-display" style="color: var(--primary);">Score: 0</div>
       </div>
-      <div id="score-display" class="text-indigo-600 font-bold bg-indigo-50 px-4 py-2 rounded-xl">Score: 0</div>
-    </div>
-    <div class="bg-white w-full aspect-square rounded-[2rem] shadow-lg flex items-center justify-center p-8 relative overflow-hidden border-4 border-gray-50">
-      <div id="emoji-display-container" class="transition-all duration-700 ease-in-out select-none flex items-center justify-center w-full h-full">
-        <span id="emoji-display" class="text-[10rem] sm:text-[12rem] leading-none block">🥑</span>
-      </div>
-      <div id="feedback-overlay" class="hidden absolute inset-0 flex items-center justify-center bg-white bg-opacity-80 backdrop-blur-sm animate-fade-in z-20">
-        <div class="flex flex-col items-center text-center px-4">
-          <span id="feedback-icon" class="text-6xl mb-4 drop-shadow-md">🎯</span>
-          <span id="feedback-title" class="text-3xl sm:text-4xl font-black mb-2 drop-shadow-sm text-green-500">Correct!</span>
-          <span class="text-xl font-bold text-gray-700">It was a <span id="feedback-answer" class="underline decoration-4 underline-offset-4 decoration-indigo-300">Avocado</span>!</span>
+      
+      <div class="quiz-stage">
+        <div id="question-display" class="quiz-question">How is a shadow formed?</div>
+        <div id="feedback-overlay" class="feedback-overlay hidden">
+          <span id="quiz-feedback-icon" style="font-size: 4rem;">🎯</span>
+          <h3 id="quiz-feedback-title">Correct!</h3>
+          <p style="font-size: 1.1rem; font-weight: bold; color: var(--text-muted); max-width: 90%;">
+            The correct answer is:<br>
+            <span id="quiz-feedback-answer" style="color: var(--primary);"></span>
+          </p>
         </div>
       </div>
+      
+      <div id="options-grid" class="options-list"></div>
     </div>
-    <div id="options-grid" class="grid grid-cols-2 gap-3 sm:gap-4 w-full"></div>
   </div>
 
-  <!-- END SCREEN (Game) -->
-  <div id="end-screen" class="hidden flex-col items-center justify-center text-center space-y-6 bg-white p-8 sm:p-12 rounded-[2.5rem] shadow-2xl w-full max-w-md mx-auto animate-fade-in border-4 border-gray-50">
-    <span id="end-icon" class="text-8xl drop-shadow-lg">👑</span>
-    <div>
-      <h2 class="text-4xl font-black text-gray-800 mb-2">Game Over!</h2>
-      <p class="text-lg text-gray-500 font-medium">Extreme Mode Complete</p>
+  <!-- END SCREEN (Quiz Game) -->
+  <div id="end-screen" class="screen hidden center-all">
+    <div class="end-box">
+      <div id="end-icon" style="font-size: 5rem; margin-bottom: 10px;">👑</div>
+      <h2 style="font-size: 2.5rem; margin-bottom: 5px; color: #0f172a;">Quiz Complete!</h2>
+      <p style="color: var(--text-muted); font-weight: bold;">P4 Light & Shadows Topic</p>
+      <div class="score-box">Score: <span id="final-score" class="score-number">0</span> / 10</div>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button onclick="startGame()" class="btn btn-primary" style="flex: 2;">🔄 Try Again</button>
+        <button onclick="openLab()" class="btn btn-outline" style="flex: 1;">Back to Lab</button>
+      </div>
     </div>
-    <div class="text-2xl text-gray-700 bg-gray-50 w-full py-4 rounded-2xl border border-gray-100">
-      Score: <span id="final-score" class="text-indigo-600 font-black text-3xl">0</span> / 10
-    </div>
-    <div class="flex w-full gap-2">
-      <button onclick="startGame()" class="flex-1 py-4 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl text-lg transition transform hover:scale-105 active:scale-95 shadow-lg">
-        🔄 Try Again
-      </button>
-      <button onclick="switchScreen('start')" class="py-4 mt-4 px-6 bg-gray-200 hover:bg-gray-300 text-gray-800 font-black rounded-2xl text-lg transition transform hover:scale-105 active:scale-95 shadow-md">
-        Home
-      </button>
+  </div>
+
+  <!-- END PUZZLE SCREEN (Mr Soh Impressed) -->
+  <div id="end-puzzle-screen" class="screen hidden center-all">
+    <div class="end-box">
+      <div style="font-size: 5rem; margin-bottom: 10px;">🎉</div>
+      <h2 style="font-size: 2.5rem; margin-bottom: 5px; color: var(--success);">Congratulation!</h2>
+      <p style="color: var(--primary); font-weight: bold; font-size: 1.5rem; margin: 20px 0;">Mr Soh is impressed =)</p>
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button onclick="openLab(true)" class="btn btn-primary" style="flex: 2;">🔄 Play Again</button>
+        <button onclick="switchScreen('start')" class="btn btn-outline" style="flex: 1;">Home</button>
+      </div>
     </div>
   </div>
 
@@ -262,58 +375,59 @@
     /* ==========================================================================
        ROUTING / SCREEN MANAGEMENT
        ========================================================================== */
-    const startScreen = document.getElementById('start-screen');
-    const labScreen = document.getElementById('lab-screen');
-    const gameScreen = document.getElementById('game-screen');
-    const endScreen = document.getElementById('end-screen');
-
-    function switchScreen(screen) {
-      startScreen.classList.add('hidden');
-      labScreen.classList.add('hidden');
-      labScreen.classList.remove('flex');
-      gameScreen.classList.add('hidden');
-      gameScreen.classList.remove('flex');
-      endScreen.classList.add('hidden');
-      endScreen.classList.remove('flex');
-
-      if (screen === 'start') {
-        startScreen.classList.remove('hidden');
-      } else if (screen === 'lab') {
-        labScreen.classList.remove('hidden');
-        labScreen.classList.add('flex');
-        // Ensure 3D canvas resizes correctly when revealed
-        if(renderer) {
-            setTimeout(() => {
-                const container = document.getElementById('three-canvas-container');
-                camera.aspect = container.clientWidth / container.clientHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(container.clientWidth, container.clientHeight);
-            }, 100);
-        }
-      } else if (screen === 'playing') {
-        gameScreen.classList.remove('hidden');
-        gameScreen.classList.add('flex');
-      } else if (screen === 'end') {
-        endScreen.classList.remove('hidden');
-        endScreen.classList.add('flex');
-      }
+    function switchScreen(screenId) {
+      document.getElementById('start-screen').classList.add('hidden');
+      document.getElementById('lab-screen').classList.add('hidden');
+      document.getElementById('game-screen').classList.add('hidden');
+      document.getElementById('end-screen').classList.add('hidden');
+      document.getElementById('end-puzzle-screen').classList.add('hidden');
+      document.getElementById(screenId + '-screen').classList.remove('hidden');
     }
+
+    window.onload = () => { switchScreen('start'); };
 
     /* ==========================================================================
        3D SCIENCE LAB LOGIC (THREE.JS)
        ========================================================================== */
     let scene, camera, renderer, orbitControls, dragControls;
-    let spotLight, ambientLight, flashlightGroup;
+    let spotLight, ambientLight;
     let draggableObjects = [];
     let is3DInitialized = false;
     let selectedObject = null;
+    let isPuzzleMode = false;
 
-    function openLab() {
+    function openLab(startPuzzle = false) {
       switchScreen('lab');
       if (!is3DInitialized) {
         init3DLab();
         is3DInitialized = true;
       }
+      
+      if (startPuzzle) {
+        isPuzzleMode = true;
+        document.getElementById('standard-controls').classList.add('hidden');
+        document.getElementById('puzzle-controls').classList.remove('hidden');
+        document.getElementById('lab-title').innerText = "🧩 Shadow Puzzle Mode";
+        document.getElementById('toggle-mode-btn').innerText = "Exit Puzzle";
+        document.getElementById('toggle-mode-btn').style.backgroundColor = "var(--danger)";
+        
+        // Puzzles are now ordered from Level 1 (Easy) to Level 5 (Hard)
+        selectedPuzzles = PUZZLES.slice(0, 5);
+        loadPuzzle(0);
+      } else {
+        isPuzzleMode = false;
+        document.getElementById('standard-controls').classList.remove('hidden');
+        document.getElementById('puzzle-controls').classList.add('hidden');
+        document.getElementById('lab-title').innerText = "🔬 Science Lab: 3D Light Properties";
+        document.getElementById('toggle-mode-btn').innerText = "Play Puzzle";
+        document.getElementById('toggle-mode-btn').style.backgroundColor = "var(--success)";
+        clear3DObjects();
+        setCameraView('side');
+      }
+    }
+
+    function toggleMode() {
+      openLab(!isPuzzleMode);
     }
 
     function init3DLab() {
@@ -321,76 +435,62 @@
       const width = container.clientWidth;
       const height = container.clientHeight;
 
-      // 1. Scene
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x1e293b); // Slate 800 background
+      scene.background = new THREE.Color(0x1e293b); 
       scene.fog = new THREE.Fog(0x1e293b, 100, 300);
 
-      // 2. Camera
       camera = new THREE.PerspectiveCamera(45, width / height, 1, 1000);
-      setCameraView('side'); // Default to side view to show off the 3rd person perspective
 
-      // 3. Renderer
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(width, height);
+      renderer.setPixelRatio(window.devicePixelRatio); 
       renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Softer, more realistic shadows
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
       container.appendChild(renderer.domElement);
 
-      // 4. Lighting
-      ambientLight = new THREE.AmbientLight(0xffffff, 0.2); // Low ambient so shadows are prominent
+      ambientLight = new THREE.AmbientLight(0xffffff, 0.2); 
       scene.add(ambientLight);
 
-      // The Main Flashlight (SpotLight)
       spotLight = new THREE.SpotLight(0xffffff, 2);
-      spotLight.position.set(0, 0, 70); // Light source far back on Z axis
-      spotLight.angle = Math.PI / 6;
-      spotLight.penumbra = 0.5; // Soft edges of the light beam
+      spotLight.position.set(0, 0, 1); 
+      spotLight.angle = Math.PI / 4.5; 
+      spotLight.penumbra = 0.5; 
       spotLight.decay = 1;
       spotLight.distance = 250;
       spotLight.castShadow = true;
-      
-      // Shadow quality
-      spotLight.shadow.mapSize.width = 2048;
-      spotLight.shadow.mapSize.height = 2048;
+      spotLight.shadow.mapSize.width = 1024; 
+      spotLight.shadow.mapSize.height = 1024;
       spotLight.shadow.camera.near = 10;
       spotLight.shadow.camera.far = 150;
       spotLight.shadow.bias = -0.001;
       scene.add(spotLight);
 
-      // Visual Representation of Flashlight
-      flashlightGroup = createFlashlightModel(spotLight.position);
+      // Flashlight visual
+      const flGroup = createFlashlightModel(spotLight.position);
+      spotLight.userData.visual = flGroup;
 
-      // 5. Environment (The "Screen" / Wall)
       const wallGeo = new THREE.PlaneGeometry(150, 150);
-      const wallMat = new THREE.MeshStandardMaterial({ 
-          color: 0xf8fafc, // White screen
-          roughness: 1,
-          metalness: 0
-      });
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 1, metalness: 0 });
       const wall = new THREE.Mesh(wallGeo, wallMat);
-      wall.position.z = -50; // Screen is at the back
+      wall.position.z = -50; 
       wall.receiveShadow = true;
       scene.add(wall);
 
-      // Add grid helper to the floor to help judge distance
       const gridHelper = new THREE.GridHelper(150, 30, 0x475569, 0x334155);
       gridHelper.position.y = -20;
       gridHelper.position.z = 10;
       scene.add(gridHelper);
 
-      // 6. Controls
       orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
       orbitControls.enableDamping = true;
       orbitControls.dampingFactor = 0.05;
-      orbitControls.maxPolarAngle = Math.PI / 2 + 0.1; // Don't allow going too far below floor
+      orbitControls.maxPolarAngle = Math.PI / 2 + 0.1; 
 
+      // Allowing completely free 3D drag movement
       dragControls = new THREE.DragControls(draggableObjects, camera, renderer.domElement);
       
-      // When dragging an object, disable camera orbit so they don't conflict
       dragControls.addEventListener('dragstart', function (event) {
         orbitControls.enabled = false;
-        // Highlight object slightly when dragging and select it
         selectObject(event.object);
       });
       
@@ -398,13 +498,15 @@
         orbitControls.enabled = true;
       });
 
-      // Handle Window Resize
-      window.addEventListener('resize', onWindowResize, false);
+      const resizeObserver = new ResizeObserver(() => {
+        if(!camera || !renderer) return;
+        if(container.clientWidth === 0 || container.clientHeight === 0) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      });
+      resizeObserver.observe(container);
 
-      // Add initial object
-      add3DObject('square');
-
-      // Start loop
       animate();
     }
 
@@ -412,21 +514,18 @@
       const group = new THREE.Group();
       group.position.copy(position);
       
-      // Body
       const bodyGeo = new THREE.CylinderGeometry(3, 3, 10, 16);
       bodyGeo.rotateX(Math.PI / 2);
       const bodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
       const body = new THREE.Mesh(bodyGeo, bodyMat);
       body.position.z = 5;
       
-      // Head
       const headGeo = new THREE.ConeGeometry(5, 5, 16);
       headGeo.rotateX(-Math.PI / 2);
       const headMat = new THREE.MeshStandardMaterial({ color: 0x1e293b });
       const head = new THREE.Mesh(headGeo, headMat);
       head.position.z = -2;
 
-      // Glow (Emissive)
       const glowGeo = new THREE.SphereGeometry(3.5, 16, 16);
       const glowMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
       const glow = new THREE.Mesh(glowGeo, glowMat);
@@ -440,77 +539,78 @@
     }
 
     function selectObject(obj) {
-      // Remove highlight from previous selection
-      if (selectedObject) {
-        selectedObject.material.emissive.setHex(0x000000); 
-      }
-      
+      if (selectedObject) selectedObject.material.emissive.setHex(0x000000); 
       selectedObject = obj;
       
-      // Highlight new selection and sync sliders
-      if (selectedObject) {
+      if (selectedObject && !isPuzzleMode) {
         selectedObject.material.emissive.setHex(0x333333); 
-        
-        const sizeSlider = document.getElementById('size-slider');
-        const rotSlider = document.getElementById('rotation-slider');
-        const opSlider = document.getElementById('opacity-slider');
-        
-        if (sizeSlider) sizeSlider.value = selectedObject.scale.x;
-        if (rotSlider) {
-          // Convert internal radians back to degrees for the slider
-          const angleDeg = (selectedObject.rotation.y * 180) / Math.PI;
-          rotSlider.value = angleDeg || 0;
-        }
-        if (opSlider) {
-          opSlider.value = selectedObject.material.opacity;
-        }
+        const s = document.getElementById('size-slider');
+        const r = document.getElementById('rotation-slider');
+        const o = document.getElementById('opacity-slider');
+        if (s) s.value = selectedObject.scale.x;
+        if (r) r.value = (selectedObject.rotation.y * 180) / Math.PI || 0;
+        if (o) o.value = selectedObject.material.opacity;
+      } else if (selectedObject && isPuzzleMode) {
+        selectedObject.material.emissive.setHex(0x222222);
       }
     }
 
-    function add3DObject(type) {
+    function add3DObject(type, isCentered = false) {
       let geometry, material, colorHex;
-
-      if (type === 'square') {
-        geometry = new THREE.BoxGeometry(10, 10, 10);
-        colorHex = 0x3b82f6; // Blue
-      } else if (type === 'circle') {
-        geometry = new THREE.SphereGeometry(6, 32, 32);
-        colorHex = 0xef4444; // Red
-      } else if (type === 'triangle') {
-        // Using a 4-sided cone to represent a 3D triangle/pyramid
-        geometry = new THREE.ConeGeometry(7, 14, 4);
-        colorHex = 0xeab308; // Yellow
+      
+      if (type === 'square') { geometry = new THREE.BoxGeometry(10, 10, 10); colorHex = 0x3b82f6; } 
+      else if (type === 'circle') { geometry = new THREE.SphereGeometry(6, 32, 32); colorHex = 0xef4444; } 
+      else if (type === 'triangle') { geometry = new THREE.ConeGeometry(7, 14, 4); colorHex = 0xeab308; }
+      else if (type === 'frame-square') {
+        const shape = new THREE.Shape();
+        shape.moveTo(-6, -6); shape.lineTo(6, -6); shape.lineTo(6, 6); shape.lineTo(-6, 6); shape.lineTo(-6, -6);
+        const hole = new THREE.Path(); hole.moveTo(-4, -4); hole.lineTo(4, -4); hole.lineTo(4, 4); hole.lineTo(-4, 4); hole.lineTo(-4, -4);
+        shape.holes.push(hole);
+        geometry = new THREE.ExtrudeGeometry(shape, { depth: 2, bevelEnabled: false }); geometry.center(); colorHex = 0x60a5fa;
+      }
+      else if (type === 'frame-circle') {
+        const shape = new THREE.Shape(); shape.absarc(0, 0, 6, 0, Math.PI * 2, false);
+        const hole = new THREE.Path(); hole.absarc(0, 0, 4, 0, Math.PI * 2, true);
+        shape.holes.push(hole);
+        geometry = new THREE.ExtrudeGeometry(shape, { depth: 2, curveSegments: 32, bevelEnabled: false }); geometry.center(); colorHex = 0xf87171;
+      }
+      else if (type === 'frame-triangle') {
+        const shape = new THREE.Shape(); shape.moveTo(0, 7); shape.lineTo(7, -6); shape.lineTo(-7, -6); shape.lineTo(0, 7);
+        const hole = new THREE.Path(); hole.moveTo(0, 3.5); hole.lineTo(4, -4); hole.lineTo(-4, -4); hole.lineTo(0, 3.5);
+        shape.holes.push(hole);
+        geometry = new THREE.ExtrudeGeometry(shape, { depth: 2, bevelEnabled: false }); geometry.center(); colorHex = 0xfacc15;
       }
 
       material = new THREE.MeshStandardMaterial({ color: colorHex, transparent: true, opacity: 1 });
-
       const mesh = new THREE.Mesh(geometry, material);
       
-      // Simulates translucent shadows: A point light inside the object that turns on as opacity drops
       const fillLight = new THREE.PointLight(colorHex, 0, 150, 1);
       mesh.add(fillLight);
       mesh.userData.fillLight = fillLight;
+      mesh.userData.type = type; 
       
-      // Stagger spawn positions so they don't spawn exactly inside each other
-      const randomX = (Math.random() - 0.5) * 20;
-      const randomY = (Math.random() - 0.5) * 20;
-      mesh.position.set(randomX, randomY, 0); // Spawn in the middle (Z=0)
-      
-      // Apply current scale and rotation sliders
-      const scaleSlider = document.getElementById('size-slider');
-      const rotSlider = document.getElementById('rotation-slider');
-      const opSlider = document.getElementById('opacity-slider');
-      
-      if (scaleSlider) {
-        const s = parseFloat(scaleSlider.value);
-        mesh.scale.set(s, s, s);
-      }
-      if (rotSlider) {
-        const a = parseFloat(rotSlider.value) * (Math.PI / 180);
-        mesh.rotation.set(a/2, a, 0);
-      }
-      if (opSlider) {
-        mesh.material.opacity = parseFloat(opSlider.value);
+      if (isCentered) {
+        mesh.position.set(0, 0, 0);
+      } else {
+        let randomX, randomY;
+        let overlap = true;
+        let attempts = 0;
+
+        while (overlap && attempts < 50) {
+          randomX = (Math.random() - 0.5) * 40; 
+          randomY = (Math.random() - 0.5) * 30;
+          overlap = false;
+          for (let i = 0; i < draggableObjects.length; i++) {
+            const otherObj = draggableObjects[i];
+            const dist = Math.sqrt(Math.pow(randomX - otherObj.position.x, 2) + Math.pow(randomY - otherObj.position.y, 2));
+            const safeDist = 7 + (otherObj.scale.x * 6.5); 
+            if (dist < safeDist) {
+              overlap = true; break;
+            }
+          }
+          attempts++;
+        }
+        mesh.position.set(randomX, randomY, 0); 
       }
       
       mesh.castShadow = true;
@@ -518,9 +618,8 @@
 
       scene.add(mesh);
       draggableObjects.push(mesh);
-      
-      // Select the newly created object immediately
       selectObject(mesh);
+      return mesh;
     }
 
     function clear3DObjects() {
@@ -535,79 +634,52 @@
 
     function setCameraView(view) {
       if (!camera || !orbitControls) return;
-      
       if (view === 'front') {
-        // Direct view from light source to wall
         camera.position.set(0, 0, 100);
+        orbitControls.target.set(0, 0, -25);
       } else if (view === 'side') {
-        // 3rd person perspective - looking from an angle
-        camera.position.set(90, 30, 20);
+        camera.position.set(45, 25, 60); 
+        orbitControls.target.set(0, 2, -15);
       }
-      
-      camera.lookAt(0, 0, 0);
-      orbitControls.target.set(0, 0, 0);
+      camera.lookAt(orbitControls.target);
       orbitControls.update();
     }
 
-    function updateTorchPosition() {
+    // Standard Lab Sliders
+    function updateTorchPosition(sourceId = 'torch-slider') {
       if(spotLight) {
-        const z = parseFloat(document.getElementById('torch-slider').value);
-        spotLight.position.z = z;
-        if(flashlightGroup) flashlightGroup.position.z = z;
+        const val = parseFloat(document.getElementById(sourceId).value);
+        spotLight.position.z = val;
+        if(spotLight.userData.visual) spotLight.userData.visual.position.z = val;
+        
+        // Keep both sliders synced
+        const otherId = sourceId === 'torch-slider' ? 'puzzle-torch-slider' : 'torch-slider';
+        const otherSlider = document.getElementById(otherId);
+        if(otherSlider) otherSlider.value = val;
       }
     }
-
+    
     function updateLightIntensity() {
       if(spotLight) {
-        const sliderVal = document.getElementById('light-slider').value;
-        spotLight.intensity = sliderVal / 50; // Scales from 0 to 4
-        
-        // Sync translucent shadow fill lights so they dim if the main torch dims
-        draggableObjects.forEach(obj => {
-           if (obj.userData.fillLight) {
-               const op = obj.material.opacity;
-               obj.userData.fillLight.intensity = (1 - op) * spotLight.intensity * 1.5;
-           }
-        });
+        const val = document.getElementById('light-slider').value;
+        spotLight.intensity = val / 50; 
       }
     }
-
     function updateShapeSize() {
       if (!selectedObject) return;
-      const scale = parseFloat(document.getElementById('size-slider').value);
-      selectedObject.scale.set(scale, scale, scale);
+      const s = parseFloat(document.getElementById('size-slider').value);
+      selectedObject.scale.set(s, s, s);
     }
-
     function updateShapeRotation() {
       if (!selectedObject) return;
-      const angle = parseFloat(document.getElementById('rotation-slider').value) * (Math.PI / 180);
-      selectedObject.rotation.set(angle / 2, angle, 0); // Rotates on X and Y to see all angles
+      const a = parseFloat(document.getElementById('rotation-slider').value) * (Math.PI / 180);
+      selectedObject.rotation.set(a / 2, a, 0); 
     }
-
     function updateShapeOpacity() {
       if (!selectedObject) return;
-      const opacityVal = parseFloat(document.getElementById('opacity-slider').value);
-      selectedObject.material.opacity = opacityVal;
-      
-      // Feature: As object becomes transparent, the inner light turns on to tint and lighten the shadow
-      if (selectedObject.userData.fillLight && spotLight) {
-         const baseIntensity = spotLight.intensity * 1.5; 
-         selectedObject.userData.fillLight.intensity = (1 - opacityVal) * baseIntensity;
-      }
-      
-      if (opacityVal <= 0.1) {
-        selectedObject.castShadow = false;
-      } else {
-        selectedObject.castShadow = true;
-      }
-    }
-
-    function onWindowResize() {
-      if(!camera || !renderer) return;
-      const container = document.getElementById('three-canvas-container');
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      const op = parseFloat(document.getElementById('opacity-slider').value);
+      selectedObject.material.opacity = op;
+      if (op <= 0.1) selectedObject.castShadow = false; else selectedObject.castShadow = true;
     }
 
     function animate() {
@@ -616,133 +688,369 @@
       if (renderer && scene && camera) renderer.render(scene, camera);
     }
 
-
     /* ==========================================================================
-       ORIGINAL GAME LOGIC (EXTREME MODE) - Unchanged
+       PUZZLE CHALLENGE LOGIC (Ordered Level 1 to 5)
        ========================================================================== */
-    const QUESTIONS = [
-      { id: 1, item: '🥑', answer: 'Avocado', options: ['Pear', 'Avocado', 'Potato', 'Mango'] },
-      { id: 2, item: '🛸', answer: 'UFO', options: ['Sun Hat', 'UFO', 'Pancake', 'Cowboy Hat'] },
-      { id: 3, item: '🍤', answer: 'Fried Shrimp', options: ['Croissant', 'Caterpillar', 'Fried Shrimp', 'Cashew'] },
-      { id: 4, item: '🦭', answer: 'Seal', options: ['Otter', 'Walrus', 'Seal', 'Manatee'] },
-      { id: 5, item: '🪃', answer: 'Boomerang', options: ['Banana', 'Boomerang', 'Crescent Moon', 'Sausage'] },
-      { id: 6, item: '🥟', answer: 'Dumpling', options: ['Empanada', 'Fortune Cookie', 'Dumpling', 'Taco'] },
-      { id: 7, item: '🪑', answer: 'Chair', options: ['Stool', 'Table', 'Chair', 'Ladder'] },
-      { id: 8, item: '🦔', answer: 'Hedgehog', options: ['Porcupine', 'Echidna', 'Hedgehog', 'Guinea Pig'] },
-      { id: 9, item: '🏏', answer: 'Cricket Bat', options: ['Oar', 'Cricket Bat', 'Baseball Bat', 'Baguette'] },
-      { id: 10, item: '🪆', answer: 'Nesting Doll', options: ['Bowling Pin', 'Vase', 'Nesting Doll', 'Snowman'] }
+    let currentPuzzleIndex = 0;
+    let selectedPuzzles = [];
+
+    // Relaxed tolerances to make it fun for primary students!
+    const PUZZLES = [
+      { // LEVEL 1: Easy (1 Object)
+        title: "The Window",
+        hint: "Fill the hole! Put the solid square inside the square frame.",
+        targetCSS: `
+          <div style="width: 70px; height: 70px; background: var(--shadow-color);"></div>
+        `,
+        setup: () => {
+          let frame = add3DObject('frame-square', true); frame.position.set(-10, -10, 0);
+          let sq = add3DObject('square', true); sq.position.set(10, 10, 0); sq.scale.set(0.8, 0.8, 0.8);
+        },
+        check: () => {
+          let frame = draggableObjects.find(o => o.userData.type === 'frame-square');
+          let sq = draggableObjects.find(o => o.userData.type === 'square');
+          // Relaxed distance check
+          let dist = Math.sqrt(Math.pow(frame.position.x - sq.position.x, 2) + Math.pow(frame.position.y - sq.position.y, 2));
+          return dist < 8; 
+        }
+      },
+      { // LEVEL 2: Easy (2 Objects Stacking)
+        title: "The House",
+        hint: "Drag the triangle to sit on top of the square.",
+        targetCSS: `
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 30px solid var(--shadow-color);"></div>
+            <div style="width: 40px; height: 40px; background: var(--shadow-color);"></div>
+          </div>
+        `,
+        setup: () => {
+          let sq = add3DObject('square', true); sq.position.set(10, -5, 0);
+          let tri = add3DObject('triangle', true); tri.position.set(-10, 5, 0);
+        },
+        check: () => {
+          let tri = draggableObjects.find(o => o.userData.type === 'triangle');
+          let sq = draggableObjects.find(o => o.userData.type === 'square');
+          // Triangle must be above square, relaxed alignment
+          let isAbove = tri.position.y > (sq.position.y + 2);
+          let isAlignedX = Math.abs(tri.position.x - sq.position.x) < 8;
+          return isAbove && isAlignedX;
+        }
+      },
+      { // LEVEL 3: Medium (Distance/Torch Usage)
+        title: "Big & Small",
+        hint: "Make the square shadow much bigger than the circle shadow. Try dragging the square closer to the torch, or use the Torch Slider!",
+        targetCSS: `
+          <div style="display: flex; align-items: flex-end; gap: 15px;">
+            <div style="width: 80px; height: 80px; background: var(--shadow-color);"></div>
+            <div style="width: 30px; height: 30px; background: var(--shadow-color); border-radius: 50%;"></div>
+          </div>
+        `,
+        setup: () => {
+          let sq = add3DObject('square', true); sq.position.set(-10, 0, 0);
+          let cir = add3DObject('circle', true); cir.position.set(10, 0, 0);
+        },
+        check: () => {
+          let sq = draggableObjects.find(o => o.userData.type === 'square');
+          let cir = draggableObjects.find(o => o.userData.type === 'circle');
+          // Square must be closer to light (Z is higher)
+          let isBigger = sq.position.z > (cir.position.z + 5); 
+          let notOverlapping = Math.abs(sq.position.x - cir.position.x) > 6; 
+          return isBigger && notOverlapping;
+        }
+      },
+      { // LEVEL 4: Medium (Center Alignment)
+        title: "The Bullseye",
+        hint: "Light passes through holes! Put the solid circle exactly inside the ring.",
+        targetCSS: `
+          <div style="width: 60px; height: 60px; border: 15px solid var(--shadow-color); border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+            <div style="width: 20px; height: 20px; background: var(--shadow-color); border-radius: 50%;"></div>
+          </div>
+        `,
+        setup: () => {
+          let ring = add3DObject('frame-circle', true); ring.position.set(0, 0, 0);
+          let dot = add3DObject('circle', true); dot.position.set(15, 15, 0); dot.scale.set(0.5, 0.5, 0.5);
+        },
+        check: () => {
+          let ring = draggableObjects.find(o => o.userData.type === 'frame-circle');
+          let dot = draggableObjects.find(o => o.userData.type === 'circle');
+          // Relaxed distance for primary students
+          let dist = Math.sqrt(Math.pow(ring.position.x - dot.position.x, 2) + Math.pow(ring.position.y - dot.position.y, 2));
+          return dist < 8; 
+        }
+      },
+      { // LEVEL 5: Hard (3 Objects)
+        title: "The Rocket",
+        hint: "3 Shapes! Stack the triangle on the square, and put the square frame at the very bottom.",
+        targetCSS: `
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 25px solid var(--shadow-color);"></div>
+            <div style="width: 40px; height: 40px; background: var(--shadow-color);"></div>
+            <div style="width: 40px; height: 20px; border: 5px solid var(--shadow-color);"></div>
+          </div>
+        `,
+        setup: () => {
+          let t = add3DObject('triangle', true); t.position.set(-15, 10, 0);
+          let s = add3DObject('square', true); s.position.set(15, 0, 0);
+          let f = add3DObject('frame-square', true); f.position.set(0, -15, 0); f.scale.set(1, 0.5, 1);
+        },
+        check: () => {
+          let t = draggableObjects.find(o => o.userData.type === 'triangle');
+          let s = draggableObjects.find(o => o.userData.type === 'square');
+          let f = draggableObjects.find(o => o.userData.type === 'frame-square');
+          
+          let isAbove1 = t.position.y > (s.position.y + 2);
+          let isAbove2 = s.position.y > (f.position.y + 2);
+          let align1 = Math.abs(t.position.x - s.position.x) < 8;
+          let align2 = Math.abs(s.position.x - f.position.x) < 8;
+          
+          return isAbove1 && isAbove2 && align1 && align2;
+        }
+      }
     ];
 
-    const TIME_LIMIT = 10;
-    let currentQuestionIndex = 0, score = 0, gameState = 'start', selectedAnswer = null, timeLeft = TIME_LIMIT, shadowRotation = 0;
-    let timerInterval = null, revealTimeout = null;
-
-    const questionCounterEl = document.getElementById('question-counter');
-    const scoreDisplayEl = document.getElementById('score-display');
-    const timerContainerEl = document.getElementById('timer-container');
-    const timerDisplayEl = document.getElementById('timer-display');
-    const emojiDisplayContainerEl = document.getElementById('emoji-display-container');
-    const emojiDisplayEl = document.getElementById('emoji-display');
-    const optionsGridEl = document.getElementById('options-grid');
-    const feedbackOverlayEl = document.getElementById('feedback-overlay');
-    const feedbackIconEl = document.getElementById('feedback-icon');
-    const feedbackTitleEl = document.getElementById('feedback-title');
-    const feedbackAnswerEl = document.getElementById('feedback-answer');
-
-    function generateRandomRotation() { return Math.floor(Math.random() * 270) + 45; }
-
-    function startGame() {
-      currentQuestionIndex = 0; score = 0; selectedAnswer = null; timeLeft = TIME_LIMIT; shadowRotation = generateRandomRotation(); gameState = 'playing';
-      switchScreen('playing'); renderGameScreen(); startTimer();
+    function loadPuzzle(index) {
+      if (index >= 5) {
+        switchScreen('end-puzzle');
+        return;
+      }
+      
+      currentPuzzleIndex = index;
+      const p = selectedPuzzles[index];
+      
+      document.getElementById('puzzle-level-title').innerText = `Level ${index + 1} / 5: ${p.title}`;
+      document.getElementById('target-shadow-visual').innerHTML = `<span class="target-shadow-label">Target Shadow</span>${p.targetCSS}`;
+      document.getElementById('puzzle-hint').innerText = p.hint;
+      
+      // Reset Scene
+      clear3DObjects();
+      setCameraView('side');
+      
+      // Reset Light to default
+      document.getElementById('puzzle-torch-slider').value = 1;
+      updateTorchPosition('puzzle-torch-slider');
+      
+      p.setup();
     }
 
-    function startTimer() {
-      clearInterval(timerInterval); updateTimerUI();
-      timerInterval = setInterval(() => {
-        timeLeft--; updateTimerUI();
-        if (timeLeft <= 0) { clearInterval(timerInterval); handleGuess(null); }
+    function checkPuzzle() {
+      // Force front view to check alignment visually like the screen
+      setCameraView('front');
+      
+      const p = selectedPuzzles[currentPuzzleIndex];
+      const isCorrect = p.check();
+      
+      const popup = document.getElementById('feedback-popup');
+      const icon = document.getElementById('feedback-icon');
+      const title = document.getElementById('feedback-title');
+      const desc = document.getElementById('feedback-desc');
+      const nextBtn = document.getElementById('feedback-next-btn');
+      const retryBtn = document.getElementById('feedback-retry-btn');
+      
+      if (isCorrect) {
+        icon.innerText = '✅';
+        title.innerText = 'Great Job!';
+        title.style.color = 'var(--success)';
+        desc.innerText = 'You matched the shadow perfectly!';
+        nextBtn.classList.remove('hidden');
+        retryBtn.classList.add('hidden');
+      } else {
+        icon.innerText = '❌';
+        title.innerText = 'Not Quite...';
+        title.style.color = 'var(--danger)';
+        desc.innerText = 'Check the target shadow again. Make sure your shapes are overlapping correctly!';
+        nextBtn.classList.add('hidden');
+        retryBtn.classList.remove('hidden');
+      }
+      
+      popup.classList.add('show');
+    }
+
+    function nextPuzzle() {
+      closeFeedback();
+      loadPuzzle(currentPuzzleIndex + 1);
+    }
+
+    function closeFeedback() {
+      document.getElementById('feedback-popup').classList.remove('show');
+    }
+
+    /* ==========================================================================
+       P4 SCIENCE SYLLABUS QUIZ LOGIC (Light & Shadows)
+       ========================================================================== */
+    const QUIZ_QUESTIONS = [
+      { 
+        question: 'What happens when light is blocked by an opaque object?', 
+        answer: 'A dark shadow is formed', 
+        options: ['A dark shadow is formed', 'The light bends around it', 'The object becomes transparent', 'The light passes through it'] 
+      },
+      { 
+        question: 'Which property of light explains why shadows are formed?', 
+        answer: 'Light travels in straight lines', 
+        options: ['Light travels in straight lines', 'Light can be reflected', 'Light is a form of energy', 'Light can be bent'] 
+      },
+      { 
+        question: 'To make a shadow larger on the screen, you should...', 
+        answer: 'Move the object closer to the light source', 
+        options: ['Move the object further from the light', 'Move the object closer to the light source', 'Move the screen further from the object', 'Use a smaller object'] 
+      },
+      { 
+        question: 'What happens to the shadow when the light source is moved further away from the object?', 
+        answer: 'The shadow becomes smaller', 
+        options: ['The shadow becomes larger', 'The shadow becomes smaller', 'The shadow disappears', 'The shadow changes its shape'] 
+      },
+      { 
+        question: 'A hollow square frame is placed between a torch and a wall. What will its shadow look like?', 
+        answer: 'A dark square frame with light in the middle', 
+        options: ['A solid dark square', 'A solid dark circle', 'A dark square frame with light in the middle', 'No shadow will be formed'] 
+      },
+      { 
+        question: 'Which of the following is NOT a source of light?', 
+        answer: 'The Moon', 
+        options: ['The Sun', 'A lit candle', 'The Moon', 'A switched-on flashlight'] 
+      },
+      { 
+        question: 'Which of these materials will form the darkest shadow?', 
+        answer: 'A piece of wood', 
+        options: ['A clear glass window', 'A piece of clear plastic', 'Tracing paper', 'A piece of wood'] 
+      },
+      { 
+        question: 'Why does a clear glass NOT form a dark shadow?', 
+        answer: 'It allows most light to pass through it', 
+        options: ['It absorbs all light', 'It is a source of light', 'It blocks all light', 'It allows most light to pass through it'] 
+      },
+      { 
+        question: 'Which of these shows that light travels in straight lines?', 
+        answer: 'A shadow takes the shape of the object blocking the light', 
+        options: ['We can see our reflection in a mirror', 'A shadow takes the shape of the object blocking the light', 'Sunlight feels warm', 'Light can pass through a magnifying glass'] 
+      },
+      { 
+        question: 'If you want to make the shadow of an object smaller, what can you do?', 
+        answer: 'Move the light source further away from the object', 
+        options: ['Move the light source further away from the object', 'Move the light source closer to the object', 'Move the screen further away from the object', 'Rotate the object'] 
+      }
+    ];
+
+    const TIME_LIMIT = 20; 
+    let currentQuizIndex = 0, quizScore = 0, quizState = 'start', selectedQuizAnswer = null, quizTimeLeft = TIME_LIMIT;
+    let quizTimerInterval = null, quizRevealTimeout = null;
+
+    const quizQuestionCounterEl = document.getElementById('question-counter');
+    const quizScoreDisplayEl = document.getElementById('score-display');
+    const quizTimerContainerEl = document.getElementById('timer-container');
+    const quizTimerDisplayEl = document.getElementById('timer-display');
+    const questionDisplayEl = document.getElementById('question-display');
+    const quizOptionsGridEl = document.getElementById('options-grid');
+    const quizFeedbackOverlayEl = document.getElementById('feedback-overlay');
+    const quizFeedbackIconEl = document.getElementById('quiz-feedback-icon');
+    const quizFeedbackTitleEl = document.getElementById('quiz-feedback-title');
+    const quizFeedbackAnswerEl = document.getElementById('quiz-feedback-answer');
+
+    // Array Shuffler Tool (for options)
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startGame() {
+      currentQuizIndex = 0; quizScore = 0; selectedQuizAnswer = null; quizTimeLeft = TIME_LIMIT; quizState = 'playing';
+      switchScreen('game'); renderQuizScreen(); startQuizTimer();
+    }
+
+    function startQuizTimer() {
+      clearInterval(quizTimerInterval); updateQuizTimerUI();
+      quizTimerInterval = setInterval(() => {
+        quizTimeLeft--; updateQuizTimerUI();
+        if (quizTimeLeft <= 0) { clearInterval(quizTimerInterval); handleQuizGuess(null); }
       }, 1000);
     }
 
-    function updateTimerUI() {
-      if (gameState === 'revealed') {
-        timerDisplayEl.innerText = '-';
-        timerContainerEl.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-colors bg-orange-50 text-orange-500';
+    function updateQuizTimerUI() {
+      if (quizState === 'revealed') {
+        quizTimerDisplayEl.innerText = '-';
+        quizTimerContainerEl.className = 'timer';
         return;
       }
-      timerDisplayEl.innerText = timeLeft + 's';
-      if (timeLeft <= 3) { timerContainerEl.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-colors bg-red-100 text-red-600 animate-pulse'; } 
-      else { timerContainerEl.className = 'flex items-center space-x-2 px-4 py-2 rounded-xl font-bold transition-colors bg-orange-50 text-orange-500'; }
+      quizTimerDisplayEl.innerText = quizTimeLeft + 's';
+      if (quizTimeLeft <= 5) { quizTimerContainerEl.className = 'timer urgent'; } 
+      else { quizTimerContainerEl.className = 'timer'; }
     }
 
-    function handleGuess(guess) {
-      if (gameState !== 'playing') return;
-      clearInterval(timerInterval); gameState = 'revealed'; selectedAnswer = guess;
-      const currentQuestion = QUESTIONS[currentQuestionIndex];
-      if (guess === currentQuestion.answer) { score++; }
-      updateGameScreenForReveal();
-      clearTimeout(revealTimeout);
-      revealTimeout = setTimeout(() => {
-        if (currentQuestionIndex < QUESTIONS.length - 1) {
-          currentQuestionIndex++; selectedAnswer = null; timeLeft = TIME_LIMIT; shadowRotation = generateRandomRotation(); gameState = 'playing';
-          renderGameScreen(); startTimer();
-        } else { endGame(); }
-      }, 2500);
+    function handleQuizGuess(guess) {
+      if (quizState !== 'playing') return;
+      clearInterval(quizTimerInterval); quizState = 'revealed'; selectedQuizAnswer = guess;
+      const currentQuestion = QUIZ_QUESTIONS[currentQuizIndex];
+      if (guess === currentQuestion.answer) { quizScore++; }
+      updateQuizScreenForReveal();
+      clearTimeout(quizRevealTimeout);
+      quizRevealTimeout = setTimeout(() => {
+        if (currentQuizIndex < QUIZ_QUESTIONS.length - 1) {
+          currentQuizIndex++; selectedQuizAnswer = null; quizTimeLeft = TIME_LIMIT; quizState = 'playing';
+          renderQuizScreen(); startQuizTimer();
+        } else { endQuiz(); }
+      }, 3500); 
     }
 
-    function renderGameScreen() {
-      const currentQuestion = QUESTIONS[currentQuestionIndex];
-      questionCounterEl.innerText = `${currentQuestionIndex + 1} / ${QUESTIONS.length}`;
-      scoreDisplayEl.innerText = `Score: ${score}`;
-      updateTimerUI();
-      emojiDisplayEl.innerText = currentQuestion.item;
-      emojiDisplayContainerEl.style.transform = `rotate(${shadowRotation}deg) scale(1)`;
-      emojiDisplayContainerEl.style.filter = 'brightness(0) contrast(200) drop-shadow(0px 10px 10px rgba(0,0,0,0.3))';
-      feedbackOverlayEl.classList.add('hidden');
-      optionsGridEl.innerHTML = '';
-      currentQuestion.options.forEach((option) => {
+    function renderQuizScreen() {
+      const currentQuestion = QUIZ_QUESTIONS[currentQuizIndex];
+      quizQuestionCounterEl.innerText = `${currentQuizIndex + 1} / ${QUIZ_QUESTIONS.length}`;
+      quizScoreDisplayEl.innerText = `Score: ${quizScore}`;
+      updateQuizTimerUI();
+      
+      questionDisplayEl.innerText = currentQuestion.question;
+      
+      quizFeedbackOverlayEl.className = 'feedback-overlay hidden';
+      quizOptionsGridEl.innerHTML = '';
+      
+      const shuffledOptions = shuffleArray([...currentQuestion.options]);
+      
+      shuffledOptions.forEach((option) => {
         const btn = document.createElement('button');
         btn.innerText = option;
-        btn.className = "p-4 rounded-2xl text-base sm:text-lg font-bold transition-all duration-300 bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 shadow-sm active:scale-95 hover:border-indigo-400 hover:shadow-md";
-        btn.onclick = () => handleGuess(option);
-        optionsGridEl.appendChild(btn);
+        btn.className = "option-btn";
+        btn.onclick = () => handleQuizGuess(option);
+        quizOptionsGridEl.appendChild(btn);
       });
     }
 
-    function updateGameScreenForReveal() {
-      const currentQuestion = QUESTIONS[currentQuestionIndex];
-      const isTimeUp = selectedAnswer === null;
-      emojiDisplayContainerEl.style.transform = 'rotate(0deg) scale(1.1)';
-      emojiDisplayContainerEl.style.filter = 'none';
-      feedbackOverlayEl.classList.remove('hidden');
-      if (selectedAnswer === currentQuestion.answer) {
-        feedbackIconEl.innerText = '🎯'; feedbackTitleEl.innerText = 'Correct!'; feedbackTitleEl.className = 'text-3xl sm:text-4xl font-black mb-2 drop-shadow-sm text-green-500';
+    function updateQuizScreenForReveal() {
+      const currentQuestion = QUIZ_QUESTIONS[currentQuizIndex];
+      const isTimeUp = selectedQuizAnswer === null;
+      
+      quizFeedbackOverlayEl.className = 'feedback-overlay'; 
+      if (selectedQuizAnswer === currentQuestion.answer) {
+        quizFeedbackOverlayEl.classList.add('correct');
+        quizFeedbackIconEl.innerText = '🎯'; quizFeedbackTitleEl.innerText = 'Correct!';
       } else if (isTimeUp) {
-        feedbackIconEl.innerText = '⏰'; feedbackTitleEl.innerText = "Time's Up!"; feedbackTitleEl.className = 'text-3xl sm:text-4xl font-black mb-2 drop-shadow-sm text-red-500';
+        quizFeedbackOverlayEl.classList.add('wrong');
+        quizFeedbackIconEl.innerText = '⏰'; quizFeedbackTitleEl.innerText = "Time's Up!";
       } else {
-        feedbackIconEl.innerText = '❌'; feedbackTitleEl.innerText = 'Wrong!'; feedbackTitleEl.className = 'text-3xl sm:text-4xl font-black mb-2 drop-shadow-sm text-red-500';
+        quizFeedbackOverlayEl.classList.add('wrong');
+        quizFeedbackIconEl.innerText = '❌'; quizFeedbackTitleEl.innerText = 'Wrong!';
       }
-      feedbackAnswerEl.innerText = currentQuestion.answer;
-      const buttons = optionsGridEl.querySelectorAll('button');
+      quizFeedbackAnswerEl.innerText = currentQuestion.answer;
+      
+      const buttons = quizOptionsGridEl.querySelectorAll('button');
       buttons.forEach((btn) => {
         btn.disabled = true;
-        btn.className = "p-4 rounded-2xl text-base sm:text-lg transition-all duration-300 ";
         if (btn.innerText === currentQuestion.answer) {
-          btn.className += "bg-green-500 text-white border-2 border-green-600 shadow-md transform scale-105 z-10 font-bold";
-        } else if (btn.innerText === selectedAnswer) {
-          btn.className += "bg-red-500 text-white border-2 border-red-600 opacity-90 font-bold";
+          btn.classList.add("correct");
+        } else if (btn.innerText === selectedQuizAnswer) {
+          btn.classList.add("wrong");
         } else {
-          btn.className += "bg-gray-100 text-gray-400 border-2 border-gray-200 opacity-40 font-bold";
+          btn.classList.add("fade");
         }
       });
-      updateTimerUI();
+      updateQuizTimerUI();
     }
 
-    function endGame() {
-      gameState = 'end'; switchScreen('end');
-      document.getElementById('final-score').innerText = score;
+    function endQuiz() {
+      quizState = 'end'; switchScreen('end');
+      document.getElementById('final-score').innerText = quizScore;
       let endIcon = '💀';
-      if (score === QUESTIONS.length) endIcon = '👑'; else if (score > QUESTIONS.length / 2) endIcon = '🔥';
+      if (quizScore === QUIZ_QUESTIONS.length) endIcon = '👑'; else if (quizScore >= QUIZ_QUESTIONS.length / 2) endIcon = '🔥';
       document.getElementById('end-icon').innerText = endIcon;
     }
   </script>
