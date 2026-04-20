@@ -105,7 +105,9 @@
     .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .view-btn { padding: 8px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; border: 1px solid transparent; cursor: pointer; text-align: center; }
     .view-btn.front { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
-    .view-btn.side { background: #d1fae5; color: #047857; border-color: #a7f3d0; }
+    .view-btn.third { background: #d1fae5; color: #047857; border-color: #a7f3d0; }
+    .view-btn.side { background: #fef08a; color: #854d0e; border-color: #fde047; }
+    .view-btn.top { background: #fbcfe8; color: #9d174d; border-color: #f9a8d4; }
 
     /* --- Puzzle Challenge UI --- */
     .target-shadow-box { background: #e2e8f0; border-radius: 12px; height: 160px; display: flex; justify-content: center; align-items: center; margin-bottom: 16px; border: 2px dashed #94a3b8; position: relative; overflow: hidden;}
@@ -224,17 +226,24 @@
           <div class="control-group">
             <h3>Camera View</h3>
             <div class="view-grid">
-              <button onclick="setCameraView('front')" class="view-btn front">Front View</button>
-              <button onclick="setCameraView('side')" class="view-btn side">3rd Person</button>
+              <button onclick="setCameraView('front')" class="view-btn front">Front</button>
+              <button onclick="setCameraView('3rd-person')" class="view-btn third">3rd Person</button>
+              <button onclick="setCameraView('side')" class="view-btn side">Side</button>
+              <button onclick="setCameraView('top')" class="view-btn top">Top</button>
             </div>
           </div>
 
           <div class="control-group">
-            <h3>Light Controls</h3>
+            <h3>Light & Screen Controls</h3>
             <div class="slider-row">
               <div class="slider-header"><span>Torch Position</span></div>
               <input type="range" id="torch-slider" min="1" max="150" value="1" oninput="updateTorchPosition('torch-slider')">
               <div class="slider-labels"><span>Forward</span><span>Backward</span></div>
+            </div>
+            <div class="slider-row">
+              <div class="slider-header"><span>Screen Position</span></div>
+              <input type="range" id="screen-slider" min="10" max="150" value="50" oninput="updateScreenPosition()">
+              <div class="slider-labels"><span>Closer</span><span>Further</span></div>
             </div>
             <div class="slider-row">
               <div class="slider-header"><span>Light Intensity</span></div>
@@ -292,8 +301,10 @@
             <p id="puzzle-hint" class="challenge-text">Drag the shapes freely to match the target shadow!</p>
             
             <div class="view-grid mb-4">
-              <button onclick="setCameraView('front')" class="view-btn front">Check Front View</button>
-              <button onclick="setCameraView('side')" class="view-btn side">Move in 3rd Person</button>
+              <button onclick="setCameraView('front')" class="view-btn front">Front</button>
+              <button onclick="setCameraView('3rd-person')" class="view-btn third">3rd Person</button>
+              <button onclick="setCameraView('side')" class="view-btn side">Side</button>
+              <button onclick="setCameraView('top')" class="view-btn top">Top</button>
             </div>
 
             <!-- Added Torch Slider to Puzzle Mode -->
@@ -390,7 +401,7 @@
        3D SCIENCE LAB LOGIC (THREE.JS)
        ========================================================================== */
     let scene, camera, renderer, orbitControls, dragControls;
-    let spotLight, ambientLight;
+    let spotLight, ambientLight, wall; // added global wall
     let draggableObjects = [];
     let is3DInitialized = false;
     let selectedObject = null;
@@ -411,7 +422,7 @@
         document.getElementById('toggle-mode-btn').innerText = "Exit Puzzle";
         document.getElementById('toggle-mode-btn').style.backgroundColor = "var(--danger)";
         
-        // Puzzles are now ordered from Level 1 (Easy) to Level 5 (Hard)
+        // Puzzles are now newly crafted, harder ones (1 to 5)
         selectedPuzzles = PUZZLES.slice(0, 5);
         loadPuzzle(0);
       } else {
@@ -422,7 +433,12 @@
         document.getElementById('toggle-mode-btn').innerText = "Play Puzzle";
         document.getElementById('toggle-mode-btn').style.backgroundColor = "var(--success)";
         clear3DObjects();
-        setCameraView('side');
+        setCameraView('3rd-person');
+        
+        // Reset screen position to default for free play mode
+        if (wall) wall.position.z = -50;
+        const screenSlider = document.getElementById('screen-slider');
+        if (screenSlider) screenSlider.value = 50;
       }
     }
 
@@ -471,7 +487,7 @@
 
       const wallGeo = new THREE.PlaneGeometry(150, 150);
       const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 1, metalness: 0 });
-      const wall = new THREE.Mesh(wallGeo, wallMat);
+      wall = new THREE.Mesh(wallGeo, wallMat);
       wall.position.z = -50; 
       wall.receiveShadow = true;
       scene.add(wall);
@@ -485,6 +501,11 @@
       orbitControls.enableDamping = true;
       orbitControls.dampingFactor = 0.05;
       orbitControls.maxPolarAngle = Math.PI / 2 + 0.1; 
+
+      // Reduce camera sensitivity
+      orbitControls.rotateSpeed = 0.4;
+      orbitControls.zoomSpeed = 0.6;
+      orbitControls.panSpeed = 0.4;
 
       // Allowing completely free 3D drag movement
       dragControls = new THREE.DragControls(draggableObjects, camera, renderer.domElement);
@@ -637,9 +658,15 @@
       if (view === 'front') {
         camera.position.set(0, 0, 100);
         orbitControls.target.set(0, 0, -25);
-      } else if (view === 'side') {
+      } else if (view === '3rd-person') {
         camera.position.set(45, 25, 60); 
         orbitControls.target.set(0, 2, -15);
+      } else if (view === 'side') {
+        camera.position.set(80, 10, -25); 
+        orbitControls.target.set(0, 0, -25);
+      } else if (view === 'top') {
+        camera.position.set(0, 100, -24.9); // slight offset to prevent gimbal lock
+        orbitControls.target.set(0, 0, -25);
       }
       camera.lookAt(orbitControls.target);
       orbitControls.update();
@@ -656,6 +683,13 @@
         const otherId = sourceId === 'torch-slider' ? 'puzzle-torch-slider' : 'torch-slider';
         const otherSlider = document.getElementById(otherId);
         if(otherSlider) otherSlider.value = val;
+      }
+    }
+    
+    function updateScreenPosition() {
+      if(wall) {
+        const val = parseFloat(document.getElementById('screen-slider').value);
+        wall.position.z = -val;
       }
     }
     
@@ -689,121 +723,150 @@
     }
 
     /* ==========================================================================
-       PUZZLE CHALLENGE LOGIC (Ordered Level 1 to 5)
+       HARDER PUZZLE CHALLENGE LOGIC (With 3-object questions)
        ========================================================================== */
     let currentPuzzleIndex = 0;
     let selectedPuzzles = [];
 
-    // Relaxed tolerances to make it fun for primary students!
+    // Redesigned with complex geometries, overlapping distances and frames, keeping tolerances forgiving (< 8)
     const PUZZLES = [
-      { // LEVEL 1: Easy (1 Object)
-        title: "The Window",
-        hint: "Fill the hole! Put the solid square inside the square frame.",
+      { // LEVEL 1: Medium (Distance/Torch Usage)
+        title: "The Ringed Planet",
+        hint: "Make the ring shadow huge so it completely surrounds the solid circle. Try dragging the ring closer to the torch, or use the Torch Slider!",
         targetCSS: `
-          <div style="width: 70px; height: 70px; background: var(--shadow-color);"></div>
-        `,
-        setup: () => {
-          let frame = add3DObject('frame-square', true); frame.position.set(-10, -10, 0);
-          let sq = add3DObject('square', true); sq.position.set(10, 10, 0); sq.scale.set(0.8, 0.8, 0.8);
-        },
-        check: () => {
-          let frame = draggableObjects.find(o => o.userData.type === 'frame-square');
-          let sq = draggableObjects.find(o => o.userData.type === 'square');
-          // Relaxed distance check
-          let dist = Math.sqrt(Math.pow(frame.position.x - sq.position.x, 2) + Math.pow(frame.position.y - sq.position.y, 2));
-          return dist < 8; 
-        }
-      },
-      { // LEVEL 2: Easy (2 Objects Stacking)
-        title: "The House",
-        hint: "Drag the triangle to sit on top of the square.",
-        targetCSS: `
-          <div style="display:flex; flex-direction:column; align-items:center;">
-            <div style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 30px solid var(--shadow-color);"></div>
-            <div style="width: 40px; height: 40px; background: var(--shadow-color);"></div>
+          <div style="width: 80px; height: 80px; border: 10px solid var(--shadow-color); border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+            <div style="width: 25px; height: 25px; background: var(--shadow-color); border-radius: 50%;"></div>
           </div>
         `,
         setup: () => {
-          let sq = add3DObject('square', true); sq.position.set(10, -5, 0);
-          let tri = add3DObject('triangle', true); tri.position.set(-10, 5, 0);
+          let ring = add3DObject('frame-circle', true); ring.position.set(-15, 0, 0);
+          let p = add3DObject('circle', true); p.position.set(15, 0, 0);
         },
         check: () => {
-          let tri = draggableObjects.find(o => o.userData.type === 'triangle');
-          let sq = draggableObjects.find(o => o.userData.type === 'square');
-          // Triangle must be above square, relaxed alignment
-          let isAbove = tri.position.y > (sq.position.y + 2);
-          let isAlignedX = Math.abs(tri.position.x - sq.position.x) < 8;
-          return isAbove && isAlignedX;
+          let r = draggableObjects.find(o => o.userData.type === 'frame-circle');
+          let p = draggableObjects.find(o => o.userData.type === 'circle');
+          // Ring must be substantially closer to light (Z is higher)
+          let isBigger = r.position.z > (p.position.z + 10); 
+          let isAligned = Math.sqrt(Math.pow(r.position.x - p.position.x, 2) + Math.pow(r.position.y - p.position.y, 2)) < 8;
+          return isBigger && isAligned;
         }
       },
-      { // LEVEL 3: Medium (Distance/Torch Usage)
-        title: "Big & Small",
-        hint: "Make the square shadow much bigger than the circle shadow. Try dragging the square closer to the torch, or use the Torch Slider!",
-        targetCSS: `
-          <div style="display: flex; align-items: flex-end; gap: 15px;">
-            <div style="width: 80px; height: 80px; background: var(--shadow-color);"></div>
-            <div style="width: 30px; height: 30px; background: var(--shadow-color); border-radius: 50%;"></div>
-          </div>
-        `,
-        setup: () => {
-          let sq = add3DObject('square', true); sq.position.set(-10, 0, 0);
-          let cir = add3DObject('circle', true); cir.position.set(10, 0, 0);
-        },
-        check: () => {
-          let sq = draggableObjects.find(o => o.userData.type === 'square');
-          let cir = draggableObjects.find(o => o.userData.type === 'circle');
-          // Square must be closer to light (Z is higher)
-          let isBigger = sq.position.z > (cir.position.z + 5); 
-          let notOverlapping = Math.abs(sq.position.x - cir.position.x) > 6; 
-          return isBigger && notOverlapping;
-        }
-      },
-      { // LEVEL 4: Medium (Center Alignment)
-        title: "The Bullseye",
-        hint: "Light passes through holes! Put the solid circle exactly inside the ring.",
-        targetCSS: `
-          <div style="width: 60px; height: 60px; border: 15px solid var(--shadow-color); border-radius: 50%; display: flex; justify-content: center; align-items: center;">
-            <div style="width: 20px; height: 20px; background: var(--shadow-color); border-radius: 50%;"></div>
-          </div>
-        `,
-        setup: () => {
-          let ring = add3DObject('frame-circle', true); ring.position.set(0, 0, 0);
-          let dot = add3DObject('circle', true); dot.position.set(15, 15, 0); dot.scale.set(0.5, 0.5, 0.5);
-        },
-        check: () => {
-          let ring = draggableObjects.find(o => o.userData.type === 'frame-circle');
-          let dot = draggableObjects.find(o => o.userData.type === 'circle');
-          // Relaxed distance for primary students
-          let dist = Math.sqrt(Math.pow(ring.position.x - dot.position.x, 2) + Math.pow(ring.position.y - dot.position.y, 2));
-          return dist < 8; 
-        }
-      },
-      { // LEVEL 5: Hard (3 Objects)
-        title: "The Rocket",
-        hint: "3 Shapes! Stack the triangle on the square, and put the square frame at the very bottom.",
+      { // LEVEL 2: Medium (3 Objects, Basic Stacking & Inside)
+        title: "The Lantern",
+        hint: "3 Shapes! Put the solid circle exactly inside the square frame. Then place the solid triangle on top of the square frame as a roof.",
         targetCSS: `
           <div style="display:flex; flex-direction:column; align-items:center;">
             <div style="width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-bottom: 25px solid var(--shadow-color);"></div>
-            <div style="width: 40px; height: 40px; background: var(--shadow-color);"></div>
-            <div style="width: 40px; height: 20px; border: 5px solid var(--shadow-color);"></div>
+            <div style="width: 45px; height: 45px; border: 8px solid var(--shadow-color); display: flex; justify-content: center; align-items: center; margin-top: -2px;">
+              <div style="width: 15px; height: 15px; background: var(--shadow-color); border-radius: 50%;"></div>
+            </div>
           </div>
         `,
         setup: () => {
+          let f = add3DObject('frame-square', true); f.position.set(0, -10, 0);
+          let c = add3DObject('circle', true); c.position.set(15, -10, 0); c.scale.set(0.6, 0.6, 0.6);
           let t = add3DObject('triangle', true); t.position.set(-15, 10, 0);
-          let s = add3DObject('square', true); s.position.set(15, 0, 0);
-          let f = add3DObject('frame-square', true); f.position.set(0, -15, 0); f.scale.set(1, 0.5, 1);
+        },
+        check: () => {
+          let f = draggableObjects.find(o => o.userData.type === 'frame-square');
+          let c = draggableObjects.find(o => o.userData.type === 'circle');
+          let t = draggableObjects.find(o => o.userData.type === 'triangle');
+          let inside = Math.sqrt(Math.pow(f.position.x - c.position.x, 2) + Math.pow(f.position.y - c.position.y, 2)) < 8;
+          let above = t.position.y > (f.position.y + 3);
+          let alignX = Math.abs(t.position.x - f.position.x) < 8;
+          return inside && above && alignX;
+        }
+      },
+      { // LEVEL 3: Hard (3 Objects, Positioning & Separation)
+        title: "The Car",
+        hint: "3 Shapes! The solid square is the main body. Use two solid circles as wheels below it, making sure they are spaced apart.",
+        targetCSS: `
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width: 60px; height: 30px; background: var(--shadow-color);"></div>
+            <div style="display:flex; gap: 15px; margin-top: -5px;">
+              <div style="width: 20px; height: 20px; background: var(--shadow-color); border-radius: 50%;"></div>
+              <div style="width: 20px; height: 20px; background: var(--shadow-color); border-radius: 50%;"></div>
+            </div>
+          </div>
+        `,
+        setup: () => {
+          let s = add3DObject('square', true); s.position.set(0, 10, 0); s.scale.set(1.5, 0.8, 1);
+          let c1 = add3DObject('circle', true); c1.position.set(-15, -10, 0); c1.scale.set(0.6, 0.6, 0.6);
+          let c2 = add3DObject('circle', true); c2.position.set(15, -10, 0); c2.scale.set(0.6, 0.6, 0.6);
+        },
+        check: () => {
+          let sq = draggableObjects.find(o => o.userData.type === 'square');
+          let circles = draggableObjects.filter(o => o.userData.type === 'circle');
+          if (circles.length < 2) return false;
+          let c1 = circles[0], c2 = circles[1];
+          
+          let below1 = c1.position.y < (sq.position.y - 2);
+          let below2 = c2.position.y < (sq.position.y - 2);
+          // Wheels must be spaced out horizontally
+          let spread = Math.abs(c1.position.x - c2.position.x) > 6 && Math.abs(c1.position.x - c2.position.x) < 25;
+          // Mid-point of wheels should be under the car body
+          let under = Math.abs((c1.position.x + c2.position.x)/2 - sq.position.x) < 8;
+          
+          return below1 && below2 && spread && under;
+        }
+      },
+      { // LEVEL 4: Very Hard (3 Objects, Complex Centering)
+        title: "The Shield",
+        hint: "3 Shapes! Put the square frame exactly inside the circular ring. Then put the solid circle inside the square frame!",
+        targetCSS: `
+          <div style="width: 80px; height: 80px; border: 8px solid var(--shadow-color); border-radius: 50%; display: flex; justify-content: center; align-items: center;">
+            <div style="width: 45px; height: 45px; border: 6px solid var(--shadow-color); display: flex; justify-content: center; align-items: center;">
+              <div style="width: 15px; height: 15px; background: var(--shadow-color); border-radius: 50%;"></div>
+            </div>
+          </div>
+        `,
+        setup: () => {
+          let fc = add3DObject('frame-circle', true); fc.position.set(-15, 10, 0);
+          let fs = add3DObject('frame-square', true); fs.position.set(15, -10, 0); fs.scale.set(0.7, 0.7, 0.7);
+          let c = add3DObject('circle', true); c.position.set(-15, -10, 0); c.scale.set(0.4, 0.4, 0.4);
+        },
+        check: () => {
+          let fc = draggableObjects.find(o => o.userData.type === 'frame-circle');
+          let fs = draggableObjects.find(o => o.userData.type === 'frame-square');
+          let c = draggableObjects.find(o => o.userData.type === 'circle');
+          
+          let dist1 = Math.sqrt(Math.pow(fc.position.x - fs.position.x, 2) + Math.pow(fc.position.y - fs.position.y, 2));
+          let dist2 = Math.sqrt(Math.pow(fs.position.x - c.position.x, 2) + Math.pow(fs.position.y - c.position.y, 2));
+          
+          return dist1 < 8 && dist2 < 8;
+        }
+      },
+      { // LEVEL 5: Extreme (4 Objects, Complex Structure)
+        title: "The Robot",
+        hint: "4 Shapes! Make a robot using the solid square as the body, the square frame as the head on top, the circular ring as a single eye inside the head, and the triangle as an antenna on top of everything!",
+        targetCSS: `
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div style="width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 20px solid var(--shadow-color);"></div>
+            <div style="width: 40px; height: 40px; border: 6px solid var(--shadow-color); display: flex; justify-content: center; align-items: center; margin-top: -2px;">
+              <div style="width: 15px; height: 15px; border: 4px solid var(--shadow-color); border-radius: 50%;"></div>
+            </div>
+            <div style="width: 30px; height: 30px; background: var(--shadow-color); margin-top: -2px;"></div>
+          </div>
+        `,
+        setup: () => {
+          let tri = add3DObject('triangle', true); tri.position.set(-15, 15, 0); tri.scale.set(0.8, 0.8, 0.8);
+          let h = add3DObject('frame-square', true); h.position.set(15, 10, 0); h.scale.set(0.8, 0.8, 0.8);
+          let eye = add3DObject('frame-circle', true); eye.position.set(-15, -10, 0); eye.scale.set(0.4, 0.4, 0.4);
+          let b = add3DObject('square', true); b.position.set(15, -15, 0); b.scale.set(0.9, 0.9, 0.9);
         },
         check: () => {
           let t = draggableObjects.find(o => o.userData.type === 'triangle');
-          let s = draggableObjects.find(o => o.userData.type === 'square');
-          let f = draggableObjects.find(o => o.userData.type === 'frame-square');
-          
-          let isAbove1 = t.position.y > (s.position.y + 2);
-          let isAbove2 = s.position.y > (f.position.y + 2);
-          let align1 = Math.abs(t.position.x - s.position.x) < 8;
-          let align2 = Math.abs(s.position.x - f.position.x) < 8;
-          
-          return isAbove1 && isAbove2 && align1 && align2;
+          let h = draggableObjects.find(o => o.userData.type === 'frame-square');
+          let e = draggableObjects.find(o => o.userData.type === 'frame-circle');
+          let b = draggableObjects.find(o => o.userData.type === 'square');
+
+          let eyeInside = Math.sqrt(Math.pow(h.position.x - e.position.x, 2) + Math.pow(h.position.y - e.position.y, 2)) < 8;
+          let antAbove = t.position.y > (h.position.y + 2);
+          let bodyBelow = b.position.y < (h.position.y - 2);
+          let alignT = Math.abs(t.position.x - h.position.x) < 8;
+          let alignB = Math.abs(b.position.x - h.position.x) < 8;
+
+          return eyeInside && antAbove && bodyBelow && alignT && alignB;
         }
       }
     ];
@@ -823,11 +886,16 @@
       
       // Reset Scene
       clear3DObjects();
-      setCameraView('side');
+      setCameraView('3rd-person');
       
       // Reset Light to default
       document.getElementById('puzzle-torch-slider').value = 1;
       updateTorchPosition('puzzle-torch-slider');
+      
+      // Reset Screen to default
+      if (wall) wall.position.z = -50;
+      const screenSlider = document.getElementById('screen-slider');
+      if (screenSlider) screenSlider.value = 50;
       
       p.setup();
     }
