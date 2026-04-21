@@ -104,10 +104,10 @@
 
     .view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .view-btn { padding: 8px; border-radius: 8px; font-weight: bold; font-size: 0.85rem; border: 1px solid transparent; cursor: pointer; text-align: center; }
-    .view-btn.front { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; }
-    .view-btn.third { background: #d1fae5; color: #047857; border-color: #a7f3d0; }
-    .view-btn.side { background: #fef08a; color: #854d0e; border-color: #fde047; }
-    .view-btn.top { background: #fbcfe8; color: #9d174d; border-color: #f9a8d4; }
+    .view-btn.front { background: #e0e7ff; color: #4338ca; border-color: #c7d2fe; transition: all 0.2s;}
+    .view-btn.third { background: #d1fae5; color: #047857; border-color: #a7f3d0; transition: all 0.2s;}
+    .view-btn.side { background: #fef08a; color: #854d0e; border-color: #fde047; transition: all 0.2s;}
+    .view-btn.top { background: #fbcfe8; color: #9d174d; border-color: #f9a8d4; transition: all 0.2s;}
 
     /* --- Puzzle Challenge UI --- */
     .target-shadow-box { background: #e2e8f0; border-radius: 12px; height: 160px; display: flex; justify-content: center; align-items: center; margin-bottom: 16px; border: 2px dashed #94a3b8; position: relative; overflow: hidden;}
@@ -226,7 +226,7 @@
           <div class="control-group">
             <h3>Camera View</h3>
             <div class="view-grid">
-              <button onclick="setCameraView('front')" class="view-btn front">Front</button>
+              <button onclick="toggleHideObjects()" class="view-btn front btn-hide-obj">Shadows Only</button>
               <button onclick="setCameraView('3rd-person')" class="view-btn third">3rd Person</button>
               <button onclick="setCameraView('side')" class="view-btn side">Side</button>
               <button onclick="setCameraView('top')" class="view-btn top">Top</button>
@@ -301,7 +301,7 @@
             <p id="puzzle-hint" class="challenge-text">Drag the shapes freely to match the target shadow!</p>
             
             <div class="view-grid mb-4">
-              <button onclick="setCameraView('front')" class="view-btn front">Front</button>
+              <button onclick="toggleHideObjects()" class="view-btn front btn-hide-obj">Shadows Only</button>
               <button onclick="setCameraView('3rd-person')" class="view-btn third">3rd Person</button>
               <button onclick="setCameraView('side')" class="view-btn side">Side</button>
               <button onclick="setCameraView('top')" class="view-btn top">Top</button>
@@ -401,11 +401,12 @@
        3D SCIENCE LAB LOGIC (THREE.JS)
        ========================================================================== */
     let scene, camera, renderer, orbitControls, dragControls;
-    let spotLight, ambientLight, wall; // added global wall
+    let spotLight, ambientLight, wall, gridHelper; 
     let draggableObjects = [];
     let is3DInitialized = false;
     let selectedObject = null;
     let isPuzzleMode = false;
+    let objectsHidden = false; // Track the visibility state of objects
 
     function openLab(startPuzzle = false) {
       switchScreen('lab');
@@ -414,6 +415,11 @@
         is3DInitialized = true;
       }
       
+      // Reset the "Shadows Only" view back to showing objects when starting/restarting
+      if (objectsHidden) {
+         toggleHideObjects();
+      }
+
       if (startPuzzle) {
         isPuzzleMode = true;
         document.getElementById('standard-controls').classList.add('hidden');
@@ -422,7 +428,6 @@
         document.getElementById('toggle-mode-btn').innerText = "Exit Puzzle";
         document.getElementById('toggle-mode-btn').style.backgroundColor = "var(--danger)";
         
-        // Puzzles are now newly crafted, harder ones (1 to 5)
         selectedPuzzles = PUZZLES.slice(0, 5);
         loadPuzzle(0);
       } else {
@@ -435,7 +440,6 @@
         clear3DObjects();
         setCameraView('3rd-person');
         
-        // Reset screen position to default for free play mode
         if (wall) wall.position.z = -50;
         const screenSlider = document.getElementById('screen-slider');
         if (screenSlider) screenSlider.value = 50;
@@ -444,6 +448,60 @@
 
     function toggleMode() {
       openLab(!isPuzzleMode);
+    }
+
+    function toggleHideObjects() {
+      objectsHidden = !objectsHidden;
+      
+      // Update buttons
+      const btns = document.querySelectorAll('.btn-hide-obj');
+      btns.forEach(btn => {
+        btn.innerText = objectsHidden ? 'Show Objects' : 'Shadows Only';
+        if(objectsHidden) {
+          btn.style.backgroundColor = '#fee2e2'; 
+          btn.style.color = '#991b1b'; 
+          btn.style.borderColor = '#fca5a5'; 
+        } else {
+          btn.style.backgroundColor = '#e0e7ff';
+          btn.style.color = '#4338ca';
+          btn.style.borderColor = '#c7d2fe';
+        }
+      });
+
+      // Hide all physical draggable objects but keep them rendering in the shadow map
+      draggableObjects.forEach(obj => {
+        obj.material.colorWrite = !objectsHidden;
+        obj.material.depthWrite = !objectsHidden;
+      });
+
+      // Hide flashlight physical body
+      if (spotLight && spotLight.userData.visual) {
+        spotLight.userData.visual.visible = !objectsHidden;
+      }
+      
+      // Hide floor grid for a cleaner shadow view
+      if (gridHelper) {
+         gridHelper.visible = !objectsHidden;
+      }
+      
+      // Prevent dragging of invisible objects to prevent confusion
+      if (dragControls) {
+         dragControls.enabled = !objectsHidden;
+      }
+
+      // Snap the camera
+      if (objectsHidden) {
+         // Auto-focus on the front wall when hiding objects
+         if (camera && orbitControls) {
+           camera.position.set(0, 0, 100);
+           orbitControls.target.set(0, 0, -25);
+           camera.lookAt(orbitControls.target);
+           orbitControls.update();
+         }
+      } else {
+         // Drop back into 3rd person when showing objects again
+         setCameraView('3rd-person');
+      }
     }
 
     function init3DLab() {
@@ -492,7 +550,7 @@
       wall.receiveShadow = true;
       scene.add(wall);
 
-      const gridHelper = new THREE.GridHelper(150, 30, 0x475569, 0x334155);
+      gridHelper = new THREE.GridHelper(150, 30, 0x475569, 0x334155);
       gridHelper.position.y = -20;
       gridHelper.position.z = 10;
       scene.add(gridHelper);
@@ -560,19 +618,24 @@
     }
 
     function selectObject(obj) {
-      if (selectedObject) selectedObject.material.emissive.setHex(0x000000); 
+      // Don't show emissive highlights if objects are officially hidden
+      if (selectedObject) {
+         selectedObject.material.emissive.setHex(0x000000); 
+      }
       selectedObject = obj;
       
-      if (selectedObject && !isPuzzleMode) {
-        selectedObject.material.emissive.setHex(0x333333); 
-        const s = document.getElementById('size-slider');
-        const r = document.getElementById('rotation-slider');
-        const o = document.getElementById('opacity-slider');
-        if (s) s.value = selectedObject.scale.x;
-        if (r) r.value = (selectedObject.rotation.y * 180) / Math.PI || 0;
-        if (o) o.value = selectedObject.material.opacity;
-      } else if (selectedObject && isPuzzleMode) {
-        selectedObject.material.emissive.setHex(0x222222);
+      if (selectedObject && !objectsHidden) {
+        if (!isPuzzleMode) {
+          selectedObject.material.emissive.setHex(0x333333); 
+          const s = document.getElementById('size-slider');
+          const r = document.getElementById('rotation-slider');
+          const o = document.getElementById('opacity-slider');
+          if (s) s.value = selectedObject.scale.x;
+          if (r) r.value = (selectedObject.rotation.y * 180) / Math.PI || 0;
+          if (o) o.value = selectedObject.material.opacity;
+        } else {
+          selectedObject.material.emissive.setHex(0x222222);
+        }
       }
     }
 
@@ -604,6 +667,10 @@
 
       material = new THREE.MeshStandardMaterial({ color: colorHex, transparent: true, opacity: 1 });
       const mesh = new THREE.Mesh(geometry, material);
+      
+      // Ensure it respects current visibility state if added while hidden
+      mesh.material.colorWrite = !objectsHidden;
+      mesh.material.depthWrite = !objectsHidden;
       
       const fillLight = new THREE.PointLight(colorHex, 0, 150, 1);
       mesh.add(fillLight);
@@ -655,17 +722,14 @@
 
     function setCameraView(view) {
       if (!camera || !orbitControls) return;
-      if (view === 'front') {
-        camera.position.set(0, 0, 100);
-        orbitControls.target.set(0, 0, -25);
-      } else if (view === '3rd-person') {
+      if (view === '3rd-person') {
         camera.position.set(45, 25, 60); 
         orbitControls.target.set(0, 2, -15);
       } else if (view === 'side') {
         camera.position.set(80, 10, -25); 
         orbitControls.target.set(0, 0, -25);
       } else if (view === 'top') {
-        camera.position.set(0, 100, -24.9); // slight offset to prevent gimbal lock
+        camera.position.set(0, 100, -24.9); 
         orbitControls.target.set(0, 0, -25);
       }
       camera.lookAt(orbitControls.target);
@@ -877,6 +941,11 @@
         return;
       }
       
+      // Ensure objects are visible when starting a new level
+      if (objectsHidden) {
+         toggleHideObjects();
+      }
+
       currentPuzzleIndex = index;
       const p = selectedPuzzles[index];
       
@@ -901,8 +970,18 @@
     }
 
     function checkPuzzle() {
-      // Force front view to check alignment visually like the screen
-      setCameraView('front');
+      // Automatically hide objects to show the perfectly clean shadow behind the popup
+      if (!objectsHidden) {
+        toggleHideObjects();
+      } else {
+        // Fallback if they were already hidden, ensure camera snaps to front view regardless
+        if (camera && orbitControls) {
+          camera.position.set(0, 0, 100);
+          orbitControls.target.set(0, 0, -25);
+          camera.lookAt(orbitControls.target);
+          orbitControls.update();
+        }
+      }
       
       const p = selectedPuzzles[currentPuzzleIndex];
       const isCorrect = p.check();
@@ -940,6 +1019,10 @@
 
     function closeFeedback() {
       document.getElementById('feedback-popup').classList.remove('show');
+      // If objects were hidden during the check, bring them back so they can try again
+      if (objectsHidden) {
+         toggleHideObjects();
+      }
     }
 
     /* ==========================================================================
